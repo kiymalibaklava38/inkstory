@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Lora:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── InkStory Design Tokens ────────────────────────────── */
+:root {
+  --bg:          #fafaf8;
+  --bg-subtle:   #f4f2ee;
+  --fg:          #0f1923;
+  --fg-muted:    #4a5568;
+  --border:      #e2ddd6;
+  --card:        #ffffff;
+  --accent:      #d4840f;
+  --accent-dim:  #b8680b;
+  --blue:        #2d6a9f;
+  --blue-dim:    #1a4f7a;
+  --surface:     #f8f6f2;
+
+  /* Reading */
+  --read-bg:     #fdf6ec;
+  --read-fg:     #2d1e14;
+  --read-muted:  #8c6d5a;
+}
+
+.dark {
+  --bg:          #060d18;
+  --bg-subtle:   #0d1a2e;
+  --fg:          #e8f0f8;
+  --fg-muted:    #8099b3;
+  --border:      #1e3248;
+  --card:        #0d1a2e;
+  --accent:      #e8a030;
+  --accent-dim:  #d4840f;
+  --blue:        #5ba3d9;
+  --blue-dim:    #4089c0;
+  --surface:     #0a1520;
+}
+
+/* ── Base ──────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+::selection {
+  background: rgba(212,132,15,0.25);
+  color: var(--fg);
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-muted); }
+
+/* ── InkStory Logo mark ───────────────────────────────── */
+.logo-mark {
+  background: linear-gradient(135deg, #d4840f, #e8c060);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── Story Cards ──────────────────────────────────────── */
+.story-card {
+  transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease;
+}
+.story-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 16px 48px rgba(6,13,24,0.15);
+}
+.dark .story-card:hover {
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(100,160,220,0.1);
+}
+
+/* ── Reading Mode ─────────────────────────────────────── */
+.reading-mode-light .story-content {
+  --read-bg:  #fdf6ec;
+  --read-fg:  #2d1e14;
+}
+.reading-mode-dark .story-content {
+  --read-bg:  #111820;
+  --read-fg:  #c8d8e8;
+}
+.reading-mode-sepia .story-content {
+  --read-bg:  #f5ead2;
+  --read-fg:  #3d2b1f;
+}
+
+.story-content {
+  font-family: 'Lora', Georgia, serif;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.95;
+  color: var(--read-fg, var(--fg));
+}
+
+.story-content p {
+  margin-bottom: 1.6rem;
+  text-indent: 2rem;
+}
+.story-content p:first-child,
+.story-content p:first-of-type { text-indent: 0; }
+.story-content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 2.5rem 0 1rem;
+  text-indent: 0;
+}
+
+/* ── TipTap Editor ─────────────────────────────────────── */
+.ProseMirror {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 1.1rem;
+  line-height: 1.9;
+  min-height: 400px;
+  outline: none;
+  padding: 1.5rem 2rem;
+  color: var(--fg);
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--fg-muted);
+  pointer-events: none;
+  height: 0;
+  opacity: 0.5;
+}
+.ProseMirror p { margin-bottom: 1.2rem; }
+.ProseMirror h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 2rem 0 0.75rem;
+}
+
+/* AI suggestion overlay */
+.ai-suggestion-text {
+  color: var(--accent);
+  background: rgba(212,132,15,0.08);
+  border-left: 3px solid var(--accent);
+  padding: 1rem 1.5rem;
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  opacity: 0.9;
+  animation: fadeIn 0.4s ease;
+}
+
+/* ── Animations ───────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes nibFloat {
+  0%, 100% { transform: rotate(-12deg) translateY(0); }
+  50%       { transform: rotate(-12deg) translateY(-8px); }
+}
+@keyframes inkDrop {
+  0%   { transform: scaleY(0) translateX(-50%); opacity: 0; }
+  60%  { transform: scaleY(1.1) translateX(-50%); opacity: 1; }
+  100% { transform: scaleY(1) translateX(-50%); opacity: 1; }
+}
+@keyframes typeStream {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-up    { animation: fadeUp  0.5s ease forwards; }
+.animate-fade-in    { animation: fadeIn  0.3s ease forwards; }
+.animate-nib-float  { animation: nibFloat 3s ease-in-out infinite; }
+.animate-type       { animation: typeStream 0.05s ease forwards; }
+
+/* Stagger children */
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.12s; }
+.stagger > *:nth-child(3) { animation-delay: 0.19s; }
+.stagger > *:nth-child(4) { animation-delay: 0.26s; }
+.stagger > *:nth-child(5) { animation-delay: 0.33s; }
+.stagger > *:nth-child(6) { animation-delay: 0.40s; }
+
+/* ── Noise texture overlay ────────────────────────────── */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ── Gradient text ────────────────────────────────────── */
+.gradient-nib {
+  background: linear-gradient(135deg, #d4840f, #f0c040);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-blue {
+  background: linear-gradient(135deg, #5ba3d9, #90caf9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glass effect ─────────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.dark .glass {
+  background: rgba(6,13,24,0.6);
+  border: 1px solid rgba(100,160,220,0.1);
+}
+
+/* ── Realtime notification pulse ─────────────────────── */
+@keyframes realtimePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(212,132,15,0.5); }
+  70%  { box-shadow: 0 0 0 8px rgba(212,132,15,0); }
+  100% { box-shadow: 0 0 0 0 rgba(212,132,15,0); }
+}
+.realtime-pulse { animation: realtimePulse 1.5s ease-out; }
