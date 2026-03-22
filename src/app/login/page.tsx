@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react' // Suspense eklendi
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,17 +8,19 @@ import { InkLogo } from '@/components/ui/InkLogo'
 import { useLang } from '@/lib/i18n'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function LoginPage() {
-  const [email, setEmail]       = useState('')
+// 1. Mevcut form mantığını ayrı bir bileşene alıyoruz
+function LoginForm() {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPw, setShowPw]     = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const router       = useRouter()
-  const searchParams = useSearchParams()
-  const redirect     = searchParams.get('redirect') || '/'
-  const supabase     = createClient()
-  const { t, lang }  = useLang()
+  const [showPw, setShowPw] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  
+  const router = useRouter()
+  const searchParams = useSearchParams() // Bu hook Suspense gerektirir
+  const redirect = searchParams.get('redirect') || '/'
+  const supabase = createClient()
+  const { t, lang } = useLang()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,7 +33,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left decorative panel */}
+      {/* Sol Panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
         style={{ background: 'linear-gradient(135deg, #060d18 0%, #1a2f4a 100%)' }}>
         <div className="absolute inset-0 opacity-10"
@@ -48,10 +50,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right form panel */}
+      {/* Sağ Panel */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[var(--bg)]">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <div className="lg:hidden text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2">
               <InkLogo size={32} />
@@ -109,5 +110,18 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// 2. Ana export bileşenini Suspense ile sarmalıyoruz
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <Loader2 className="animate-spin text-[var(--accent)]" size={40} />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

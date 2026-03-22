@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient()
   const { searchParams } = new URL(req.url)
-  const page   = parseInt(searchParams.get('page') || '1')
+  const page   = Math.max(1, parseInt(searchParams.get('page') || '1'))
   const search = searchParams.get('search') || ''
   const filter = searchParams.get('filter') || 'all'
   const limit  = 30
@@ -27,19 +27,19 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('profiles')
-    .select('id,username,display_name,avatar_url,is_admin,is_banned,ban_reason,banned_at,shadow_banned,created_at', { count: 'exact' })
+    .select('id,username,display_name,avatar_url,is_admin,is_banned,ban_reason,banned_at,shadow_banned,is_verified,verification_badge,created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (search) query = query.or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
-  if (filter === 'banned')       query = query.eq('is_banned', true)
+  if (filter === 'banned')        query = query.eq('is_banned', true)
   if (filter === 'shadow_banned') query = query.eq('shadow_banned', true)
-  if (filter === 'admins')       query = query.eq('is_admin', true)
+  if (filter === 'admins')        query = query.eq('is_admin', true)
 
   const { data, count, error: dbErr } = await query
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 
-  return NextResponse.json({ users: data, total: count, page, limit })
+  return NextResponse.json({ users: data || [], total: count || 0, page, limit })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -59,24 +59,23 @@ export async function PATCH(req: NextRequest) {
   const { userId, action, reason } = parsed.data
   const supabase = await createClient()
 
-  // Prevent admin from acting on themselves
   if (userId === adminUser.id) {
-    return NextResponse.json({ error: 'Cannot perform this action on your own account.' }, { status: 400 })
+    return NextResponse.json({ error: 'Kendi hesabınıza bu işlemi yapamazsınız.' }, { status: 400 })
   }
 
   const updates: Record<string, any> = {}
 
   switch (action) {
     case 'ban':
-      updates.is_banned    = true
-      updates.ban_reason   = reason || 'Admin action'
-      updates.banned_at    = new Date().toISOString()
+      updates.is_banned     = true
+      updates.ban_reason    = reason || 'Admin kararı'
+      updates.banned_at     = new Date().toISOString()
       updates.shadow_banned = false
       break
     case 'unban':
-      updates.is_banned    = false
-      updates.ban_reason   = null
-      updates.banned_at    = null
+      updates.is_banned     = false
+      updates.ban_reason    = null
+      updates.banned_at     = null
       updates.shadow_banned = false
       break
     case 'shadow_ban':
@@ -91,15 +90,27 @@ export async function PATCH(req: NextRequest) {
       break
   }
 
-  const { error: dbErr } = await supabase.from('profiles').update(updates).eq('id', userId)
-  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
+  const { error: dbErr } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
 
-  await supabase.rpc('log_audit', {
-    p_action:     `admin_user_${action}`,
-    p_table_name: 'profiles',
-    p_record_id:  userId,
-    p_metadata:   JSON.stringify({ action, reason }),
-  })
+  if (dbErr) {
+    console.error('[Admin Users] Update error:', dbErr)
+    return NextResponse.json({ error: dbErr.message }, { status: 500 })
+  }
+
+  // Audit log — hata olursa işlemi bloklama
+  try {
+    await supabase.rpc('log_audit', {
+      p_action:     `admin_user_${action}`,
+      p_table_name: 'profiles',
+      p_record_id:  userId,
+      p_metadata:   JSON.stringify({ action, reason }),
+    })
+  } catch (e) {
+    console.warn('[Admin Users] Audit log failed (non-critical):', e)
+  }
 
   return NextResponse.json({ success: true })
 }

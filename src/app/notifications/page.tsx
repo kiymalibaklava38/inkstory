@@ -51,22 +51,29 @@ export default function NotificationsPage() {
 
       const channel = supabase.channel('notifications-page')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'yorumlar' }, async (payload) => {
+          // Ignore own comments
+          if (payload.new.yazar_id === user.id) return
+
           const { data: c } = await supabase
             .from('yorumlar')
-            .select('icerik, profiles(username,display_name,avatar_url), hikayeler(baslik,slug)')
+            .select('icerik, profiles(username,display_name,avatar_url), hikayeler(baslik,slug,yazar_id)')
             .eq('id', payload.new.id).single()
-          if (c && (c as any).hikayeler) {
-            const d = c as any
-            const name = d.profiles?.display_name || d.profiles?.username
-            const snippet = d.icerik.slice(0, 60) + (d.icerik.length > 60 ? '…' : '')
-            setNotifs(prev => [{
-              id: payload.new.id, type: 'comment',
-              text: buildCommentText(name, snippet),
-              link: `/story/${d.hikayeler?.slug}`,
-              time: payload.new.created_at,
-              avatar: d.profiles?.avatar_url, username: d.profiles?.username, isNew: true,
-            }, ...prev])
-          }
+
+          if (!c) return
+          const d = c as any
+
+          // Only show notification if current user owns the story
+          if (d.hikayeler?.yazar_id !== user.id) return
+
+          const name = d.profiles?.display_name || d.profiles?.username
+          const snippet = d.icerik.slice(0, 60) + (d.icerik.length > 60 ? '…' : '')
+          setNotifs(prev => [{
+            id: payload.new.id, type: 'comment',
+            text: buildCommentText(name, snippet),
+            link: `/story/${d.hikayeler?.slug}`,
+            time: payload.new.created_at,
+            avatar: d.profiles?.avatar_url, username: d.profiles?.username, isNew: true,
+          }, ...prev])
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'begeniler' }, async (payload) => {
           const { data: l } = await supabase
@@ -117,8 +124,10 @@ export default function NotificationsPage() {
         .select('id,created_at,profiles(username,display_name,avatar_url),hikayeler(baslik,slug,yazar_id)')
         .order('created_at', { ascending: false }).limit(20),
       supabase.from('yorumlar')
-        .select('id,icerik,created_at,profiles(username,display_name,avatar_url),hikayeler(baslik,slug,yazar_id)')
-        .neq('yazar_id', userId).order('created_at', { ascending: false }).limit(20),
+        .select('id,icerik,created_at,profiles(username,display_name,avatar_url),hikayeler!inner(baslik,slug,yazar_id)')
+        .neq('yazar_id', userId)
+        .eq('hikayeler.yazar_id', userId)
+        .order('created_at', { ascending: false }).limit(20),
       supabase.from('takip')
         .select('id,created_at,profiles:takipci_id(username,display_name,avatar_url)')
         .eq('takip_edilen_id', userId).order('created_at', { ascending: false }).limit(20),

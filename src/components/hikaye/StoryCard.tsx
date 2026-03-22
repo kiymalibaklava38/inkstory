@@ -1,23 +1,14 @@
 import Link from 'next/link'
 import { Eye, BookOpen } from 'lucide-react'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import type { Lang } from '@/lib/i18n'
-
-const CATEGORY_NAMES: Record<string, Record<Lang, string>> = {
-  romantik:      { en: 'Romance',    tr: 'Romantik' },
-  fantastik:     { en: 'Fantasy',    tr: 'Fantastik' },
-  korku:         { en: 'Horror',     tr: 'Korku' },
-  gizem:         { en: 'Mystery',    tr: 'Gizem' },
-  'bilim-kurgu': { en: 'Sci-Fi',     tr: 'Bilim Kurgu' },
-  macera:        { en: 'Adventure',  tr: 'Macera' },
-  siir:          { en: 'Poetry',     tr: 'Şiir' },
-  tarihi:        { en: 'Historical', tr: 'Tarihi' },
-}
+import { getCategoryName } from '@/lib/categories'
 
 interface Story {
   id: string; baslik: string; slug: string; aciklama?: string
   kapak_url?: string; goruntuleme: number; durum: string
   is_featured?: boolean
-  profiles: { username: string; display_name?: string; avatar_url?: string; is_premium?: boolean }
+  profiles: { username: string; display_name?: string; avatar_url?: string; is_premium?: boolean; is_verified?: boolean; verification_badge?: string }
   kategoriler?: { ad: string; ikon: string; renk: string; slug: string }
 }
 
@@ -29,9 +20,7 @@ interface Props {
 
 export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
   const cat = story.kategoriler
-  const catName = cat
-    ? (CATEGORY_NAMES[cat.slug]?.[lang] ?? cat.ad)
-    : null
+  const catName = cat ? getCategoryName(cat.slug, lang) : null
 
   return (
     <Link href={`/story/${story.slug}`} className={`story-card block group ${featured ? 'md:col-span-2' : ''}`}>
@@ -51,9 +40,9 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
             </div>
           )}
 
-          {/* Category badge */}
+          {/* Category badge - bottom left */}
           {cat && catName && (
-            <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-medium backdrop-blur-md"
+            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-medium backdrop-blur-md"
               style={{ backgroundColor: `${cat.renk}cc` }}>
               <span>{cat.ikon}</span>{catName}
             </div>
@@ -108,6 +97,9 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
                   style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
                   ⭐
                 </span>
+              )}
+              {story.profiles?.is_verified && (
+                <VerifiedBadge size={12} badge={story.profiles.verification_badge || 'author'} />
               )}
             </div>
 

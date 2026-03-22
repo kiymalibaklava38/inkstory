@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { StoryDetailClient } from './StoryDetailClient'
+import { headers } from 'next/headers'
+import { createHash } from 'crypto'
 
 interface Props { params: { slug: string } }
 
@@ -9,13 +11,27 @@ export default async function StoryPage({ params }: Props) {
 
   const { data: story } = await supabase
     .from('hikayeler')
-    .select('*, profiles(id,username,display_name,avatar_url,bio), kategoriler(id,ad,slug,renk,ikon)')
+    .select('*, profiles(id,username,display_name,avatar_url,bio,is_verified,verification_badge), kategoriler(id,ad,slug,renk,ikon)')
     .eq('slug', params.slug)
     .single()
 
   if (!story) notFound()
 
-  await supabase.rpc('increment_goruntuleme', { hikaye_id: story.id })
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Get IP hash for anonymous view dedup
+  const headersList = headers()
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || headersList.get('x-real-ip')
+    || 'unknown'
+  const ipHash = createHash('sha256').update(ip).digest('hex').slice(0, 16)
+
+  // Increment view with anti-spam protection
+  await supabase.rpc('increment_goruntuleme', {
+    hikaye_id:       story.id,
+    viewer_user_id:  user?.id || null,
+    viewer_ip_hash:  user ? null : ipHash,
+  })
 
   const { data: chapters } = await supabase
     .from('bolumler')
@@ -25,8 +41,6 @@ export default async function StoryPage({ params }: Props) {
 
   const { count: likeCount } = await supabase
     .from('begeniler').select('*', { count: 'exact', head: true }).eq('hikaye_id', story.id)
-
-  const { data: { user } } = await supabase.auth.getUser()
 
   let userLiked = false, userSaved = false, userFollows = false
 

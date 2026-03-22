@@ -5,6 +5,7 @@ import { Footer } from '@/components/layout/Footer'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
 import { LangProvider } from '@/lib/i18n'
 import { AnnouncementModal } from '@/components/ui/AnnouncementModal'
+import { OnboardingGate } from '@/components/personalization/OnboardingGate'
 
 export const metadata: Metadata = {
   title: { default: 'InkStory – Write Your World', template: '%s | InkStory' },
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <main className="min-h-screen">{children}</main>
             <Footer />
             <AnnouncementModal />
+            <OnboardingGate>{null}</OnboardingGate>
           </LangProvider>
         </ThemeProvider>
       </body>

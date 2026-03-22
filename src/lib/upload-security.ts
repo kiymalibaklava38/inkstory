@@ -15,18 +15,13 @@ const MAGIC_BYTES: Record<string, number[][]> = {
   'image/webp': [[0x52, 0x49, 0x46, 0x46]], // RIFF header (WebP)
 }
 
-const ALLOWED_MIME_TYPES = Object.keys(MAGIC_BYTES)
-const MAX_AVATAR_BYTES   = 2 * 1024 * 1024   //  2 MB
-const MAX_COVER_BYTES    = 5 * 1024 * 1024   //  5 MB
+export const ALLOWED_MIME_TYPES = Object.keys(MAGIC_BYTES)
+export const MAX_AVATAR_BYTES   = 2 * 1024 * 1024   //  2 MB
+export const MAX_COVER_BYTES    = 5 * 1024 * 1024   //  5 MB
 
-export interface UploadValidationResult {
-  ok: true
-  ext: string
-  safeFilename: string
-} | {
-  ok: false
-  error: string
-}
+export type UploadValidationResult =
+  | { ok: true;  ext: string; safeFilename: string }
+  | { ok: false; error: string }
 
 /**
  * Validate an image File object client-side (type, size, name).

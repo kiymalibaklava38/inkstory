@@ -5,14 +5,15 @@ import {
   Users, BookOpen, Eye, Shield, Trash2, Globe, Lock, CheckCircle,
   Flag, Search, BarChart3, AlertTriangle, UserX, Sparkles,
   Star, Unlock, TrendingUp, MessageCircle, RefreshCw, Ban,
-  Loader2, Info, Megaphone, Plus, ToggleLeft, ToggleRight, Pencil, Mail, Download
+  Loader2, Info, Megaphone, Plus, ToggleLeft, ToggleRight, Pencil, Mail, Download,
+  BadgeCheck, XCircle
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { tr as dateFnsTr, enUS } from 'date-fns/locale'
 import { InkLogo } from '@/components/ui/InkLogo'
 import { useLang } from '@/lib/i18n'
 
-type Tab = 'overview' | 'users' | 'stories' | 'comments' | 'reports' | 'ai' | 'announcements' | 'waitlist'
+type Tab = 'overview' | 'users' | 'stories' | 'comments' | 'reports' | 'ai' | 'announcements' | 'waitlist' | 'verify'
 
 interface Stats {
   userCount: number; storyCount: number
@@ -70,6 +71,8 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [waitlist, setWaitlist]             = useState<any[]>([])
   const [waitlistTotal, setWaitlistTotal]   = useState(0)
+  const [verifyApps, setVerifyApps]         = useState<any[]>([])
+  const [verifyFilter, setVerifyFilter]     = useState('pending')
   const [annForm, setAnnForm] = useState<{id?:string;title:string;message:string;active:boolean}|null>(null)
   const [annSaving, setAnnSaving] = useState(false)
 
@@ -87,6 +90,7 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
   const fetchAI       = useCallback(async () => { setLoading(true); const r = await fetch('/api/admin/ai-logs?days=7'); const d = await r.json(); setAiData(d); setLoading(false) }, [])
   const fetchAnn = useCallback(async () => { setLoading(true); const r = await fetch('/api/admin/announcements'); const d = await r.json(); setAnnouncements(d.announcements||[]); setLoading(false) }, [])
   const fetchWaitlist = useCallback(async () => { setLoading(true); const r = await fetch('/api/admin/waitlist'); const d = await r.json(); setWaitlist(d.emails||[]); setWaitlistTotal(d.total||0); setLoading(false) }, [])
+  const fetchVerify = useCallback(async (status = 'pending') => { setLoading(true); const r = await fetch(`/api/admin/verify?status=${status}`); const d = await r.json(); setVerifyApps(d.applications||[]); setLoading(false) }, [])
 
   useEffect(() => {
     if (tab==='users')    fetchUsers()
@@ -96,6 +100,7 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
     if (tab==='ai')       fetchAI()
     if (tab==='announcements') fetchAnn()
     if (tab==='waitlist') fetchWaitlist()
+    if (tab==='verify') fetchVerify(verifyFilter)
   }, [tab, userFilter, storyFilter, commentFilter, reportFilter])
 
   const doUserAction    = async (userId: string, action: string, reason?: string) => { await fetch('/api/admin/users',    { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId,action,reason}) }); fetchUsers(); setConfirm(null) }
@@ -112,6 +117,7 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
     { id:'ai',       label:t.adminAiUsage,   icon:Sparkles },
     { id:'announcements', label:t.adminAnnouncements, icon:Megaphone },
     { id:'waitlist', label:lang==='tr'?'Bekleme Listesi':'Waitlist', icon:Mail, badge:waitlistTotal||undefined },
+    { id:'verify', label:lang==='tr'?'Doğrulama':'Verification', icon:BadgeCheck, badge:verifyApps.filter((a:any)=>a.status==='pending').length||undefined },
   ]
 
   const statusBadge = (s: string) => {
@@ -263,9 +269,10 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
                       <td className="px-5 py-3.5">
                         <div className="flex flex-wrap gap-1">
                           {u.is_admin      && <span className="px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] text-[10px] font-bold">Admin</span>}
+                          {u.is_verified   && <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold">✅ {lang==='tr'?'Doğrulanmış':'Verified'}</span>}
                           {u.is_banned     && <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 text-[10px] font-bold">{t.filterBanned}</span>}
                           {u.shadow_banned && <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-bold">{t.filterShadow}</span>}
-                          {!u.is_admin&&!u.is_banned&&!u.shadow_banned && <span className="text-xs text-[var(--fg-muted)]">—</span>}
+                          {!u.is_admin&&!u.is_verified&&!u.is_banned&&!u.shadow_banned && <span className="text-xs text-[var(--fg-muted)]">—</span>}
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
@@ -277,6 +284,23 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
                           {!u.shadow_banned && <button onClick={()=>doUserAction(u.id,'shadow_ban')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-purple-400 hover:bg-purple-500/10 transition-all"><UserX style={{width:12,height:12}}/>{t.shadowAction}</button>}
                           <button onClick={()=>doUserAction(u.id,u.is_admin?'remove_admin':'make_admin')} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-[var(--accent)] hover:bg-[var(--accent)]/10 transition-all">
                             <Shield style={{width:12,height:12}}/>{u.is_admin?t.demoteAction:t.makeAdminAction}
+                          </button>
+                          {/* Verified badge toggle */}
+                          <button
+                            onClick={async () => {
+                              const action = u.is_verified ? 'remove_verify' : 'give_verify'
+                              await fetch('/api/admin/users/verify', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: u.id, action }),
+                              })
+                              fetchUsers()
+                            }}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs transition-all ${u.is_verified ? 'text-amber-400 hover:bg-amber-500/10' : 'text-amber-500 hover:bg-amber-500/10'}`}
+                            title={u.is_verified ? (lang==='tr'?'Rozeti Kaldır':'Remove Badge') : (lang==='tr'?'Rozet Ver':'Give Badge')}
+                          >
+                            <BadgeCheck style={{width:12,height:12}}/>
+                            {u.is_verified ? (lang==='tr'?'Rozeti Kaldır':'Remove') : (lang==='tr'?'Rozet Ver':'Verify')}
                           </button>
                         </div>
                       </td>
@@ -513,12 +537,18 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
                               : <span className="text-xs text-[var(--fg-muted)]">{t.normalLabel}</span>}
                           </td>
                           <td className="px-5 py-3.5 text-right">
-                            {s.suspicious && (
-                              <button onClick={()=>setConfirm({title:t.banConfirmTitle,desc:`${t.suspiciousLabel} AI usage.`,onConfirm:()=>doUserAction(s.user_id,'ban','Excessive AI usage')})}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 ml-auto transition-all">
-                                <Ban style={{width:12,height:12}}/>{t.banAction}
-                              </button>
-                            )}
+                            <div className="flex items-center gap-1 justify-end">
+                              <a href={`/profile/${s.username}`} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--fg)] transition-all">
+                                <Eye style={{width:12,height:12}}/>{lang==='tr'?'Profil':'Profile'}
+                              </a>
+                              {s.suspicious && (
+                                <button onClick={()=>setConfirm({title:t.banConfirmTitle,desc:`${t.suspiciousLabel} AI usage.`,onConfirm:()=>doUserAction(s.user_id,'ban','Excessive AI usage')})}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-all">
+                                  <Ban style={{width:12,height:12}}/>{t.banAction}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -711,6 +741,82 @@ export function AdminDashboard({ stats, recentUsers }: Props) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+
+        {/* ── VERIFY ─────────────────────────────────────── */}
+        {tab==='verify' && (
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-display font-semibold text-[var(--fg)]">
+                {lang==='tr'?'Doğrulama Başvuruları':'Verification Applications'}
+              </h3>
+              <div className="flex gap-2">
+                {['pending','approved','rejected'].map(s => (
+                  <button key={s} onClick={() => { setVerifyFilter(s); fetchVerify(s) }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${verifyFilter===s?'bg-[var(--accent)] text-white':'border border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)]'}`}>
+                    {s==='pending'?(lang==='tr'?'Bekleyen':'Pending'):s==='approved'?(lang==='tr'?'Onaylı':'Approved'):(lang==='tr'?'Reddedilen':'Rejected')}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {loading ? (
+              <div className="flex justify-center py-12"><Loader2 style={{width:20,height:20}} className="animate-spin text-[var(--accent)]"/></div>
+            ) : verifyApps.length === 0 ? (
+              <div className="text-center py-16 text-[var(--fg-muted)]">
+                <BadgeCheck style={{width:32,height:32}} className="mx-auto mb-3 opacity-30"/>
+                <p>{lang==='tr'?'Başvuru yok.':'No applications.'}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {verifyApps.map((app:any) => (
+                  <div key={app.id} className="bg-[var(--card)] rounded-2xl border border-[var(--border)] p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        {app.profiles?.avatar_url
+                          ? <img src={app.profiles.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover"/>
+                          : <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>{(app.profiles?.display_name||app.profiles?.username||'?')[0].toUpperCase()}</div>
+                        }
+                        <div>
+                          <p className="font-semibold text-[var(--fg)] text-sm">{app.profiles?.display_name||app.profiles?.username}</p>
+                          <p className="text-xs text-[var(--fg-muted)]">@{app.profiles?.username}</p>
+                        </div>
+                      </div>
+                      {app.status==='pending' && (
+                        <div className="flex gap-2">
+                          <button onClick={async()=>{
+                            await fetch('/api/admin/verify',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({applicationId:app.id,action:'approve',badge:'author'})})
+                            fetchVerify('pending')
+                          }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-all">
+                            <CheckCircle style={{width:12,height:12}}/> {lang==='tr'?'Onayla':'Approve'}
+                          </button>
+                          <button onClick={async()=>{
+                            const reason = prompt(lang==='tr'?'Red sebebi (isteğe bağlı):':'Rejection reason (optional):')
+                            await fetch('/api/admin/verify',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({applicationId:app.id,action:'reject',reason:reason||undefined})})
+                            fetchVerify('pending')
+                          }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all">
+                            <XCircle style={{width:12,height:12}}/> {lang==='tr'?'Reddet':'Reject'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-4">
+                      {[
+                        {label:lang==='tr'?'Takipçi':'Followers',val:app.follower_count,req:1000},
+                        {label:lang==='tr'?'Okunma':'Reads',val:app.read_count,req:10000},
+                        {label:lang==='tr'?'Bölüm':'Chapters',val:app.chapter_count,req:5},
+                      ].map(({label,val,req})=>(
+                        <div key={label} className={`p-3 rounded-xl text-center ${val>=req?'bg-emerald-500/10':'bg-[var(--bg-subtle)]'}`}>
+                          <p className={`text-lg font-bold ${val>=req?'text-emerald-400':'text-[var(--fg)]'}`}>{val?.toLocaleString()}</p>
+                          <p className="text-[10px] text-[var(--fg-muted)]">{label} / {req.toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

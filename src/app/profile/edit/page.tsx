@@ -4,22 +4,29 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLang } from '@/lib/i18n'
-import { Save, ArrowLeft, Camera, Loader2 } from 'lucide-react'
+import { Save, ArrowLeft, Camera, Loader2, Heart, ImagePlus } from 'lucide-react'
 import Link from 'next/link'
+import { InterestPicker } from '@/components/personalization/InterestPicker'
+import { getCategoryBySlug } from '@/lib/categories'
 
 export default function EditProfilePage() {
   const [form, setForm] = useState({ display_name: '', username: '', bio: '', website: '' })
   const [avatarFile, setAvatarFile]   = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null)
+  const [bannerFile, setBannerFile]       = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+  const [currentBanner, setCurrentBanner] = useState<string | null>(null)
   const [originalUsername, setOriginalUsername] = useState('')
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
   const [success, setSuccess]   = useState(false)
+  const [showInterests, setShowInterests] = useState(false)
+  const [userPrefs, setUserPrefs]         = useState<string[]>([])
   const router   = useRouter()
   const supabase = createClient()
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
   useEffect(() => {
     const init = async () => {
@@ -36,7 +43,16 @@ export default function EditProfilePage() {
         })
         setOriginalUsername(data.username)
         setCurrentAvatar(data.avatar_url)
+        setCurrentBanner(data.banner_url || null)
       }
+
+      // Load preferences
+      const prefRes = await fetch('/api/preferences')
+      if (prefRes.ok) {
+        const prefData = await prefRes.json()
+        setUserPrefs(prefData.categories || [])
+      }
+
       setLoading(false)
     }
     init()
@@ -68,6 +84,20 @@ export default function EditProfilePage() {
     }
 
     let avatarUrl = currentAvatar
+    let bannerUrl = currentBanner
+
+    // Upload banner if changed
+    if (bannerFile) {
+      const bfd = new FormData()
+      bfd.append('file', bannerFile)
+      const bRes = await fetch('/api/upload/banner', { method: 'POST', body: bfd })
+      if (bRes.ok) {
+        const bd = await bRes.json()
+        bannerUrl = bd.url
+      } else {
+        setError('Banner upload failed'); setSaving(false); return
+      }
+    }
 
     if (avatarFile) {
       const ext = avatarFile.name.split('.').pop()
@@ -84,6 +114,7 @@ export default function EditProfilePage() {
       bio:          form.bio || null,
       website:      form.website || null,
       avatar_url:   avatarUrl,
+      banner_url:   bannerUrl,
       updated_at:   new Date().toISOString(),
     }).eq('id', user.id)
 
@@ -120,6 +151,56 @@ export default function EditProfilePage() {
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
+
+        {/* Banner image */}
+        <div>
+          <p className="text-sm font-medium text-[var(--fg)] mb-2">
+            {lang === 'tr' ? 'Profil Arka Planı' : 'Profile Banner'}
+            <span className="text-[var(--fg-muted)] font-normal ml-1">({lang === 'tr' ? 'isteğe bağlı' : 'optional'})</span>
+          </p>
+          <div
+            onClick={() => document.getElementById('banner-input')?.click()}
+            className="relative rounded-2xl overflow-hidden cursor-pointer border-2 border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 transition-all"
+            style={{ height: 140 }}
+          >
+            {bannerPreview || currentBanner ? (
+              <>
+                <img src={bannerPreview || currentBanner!} alt="banner" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <p className="text-white text-sm font-semibold flex items-center gap-2">
+                    <ImagePlus style={{ width: 16, height: 16 }} />
+                    {lang === 'tr' ? 'Değiştir' : 'Change banner'}
+                  </p>
+                </div>
+                <button type="button"
+                  onClick={e => { e.stopPropagation(); setBannerFile(null); setBannerPreview(null); setCurrentBanner(null) }}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/80">
+                  ✕
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-[var(--fg-muted)]">
+                <ImagePlus style={{ width: 24, height: 24 }} />
+                <p className="text-sm">{lang === 'tr' ? 'Banner ekle' : 'Add banner image'}</p>
+                <p className="text-xs opacity-60">JPG, PNG, WebP · Max 5MB · 1200×400 önerilen</p>
+              </div>
+            )}
+          </div>
+          <input
+            id="banner-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (!f) return
+              if (f.size > 5 * 1024 * 1024) { setError(lang === 'tr' ? 'Maksimum 5MB' : 'Max 5MB'); return }
+              setBannerFile(f)
+              setBannerPreview(URL.createObjectURL(f))
+            }}
+          />
+        </div>
+
         {/* Avatar */}
         <div className="flex items-center gap-6">
           <div className="relative group flex-shrink-0">
@@ -201,6 +282,58 @@ export default function EditProfilePage() {
           </button>
         </div>
       </form>
+
+      {/* ── İlgi Alanları ───────────────────────────────── */}
+      <div className="mt-6 bg-[var(--card)] rounded-2xl border border-[var(--border)] p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Heart style={{ width: 16, height: 16 }} className="text-[var(--accent)]" />
+            <h3 className="font-display font-semibold text-[var(--fg)]">
+              {lang === 'tr' ? 'İlgi Alanlarım' : 'My Interests'}
+            </h3>
+          </div>
+          <button onClick={() => setShowInterests(true)}
+            className="text-xs text-[var(--accent)] hover:underline font-medium">
+            {lang === 'tr' ? 'Düzenle' : 'Edit'}
+          </button>
+        </div>
+
+        {userPrefs.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {userPrefs.map(slug => {
+              const cat = getCategoryBySlug(slug)
+              if (!cat) return null
+              return (
+                <span key={slug}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-medium"
+                  style={{ background: `linear-gradient(135deg, ${cat.renk}dd, ${cat.renk}99)` }}>
+                  {cat.ikon} {lang === 'tr' ? cat.tr : cat.en}
+                </span>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-[var(--fg-muted)]">
+            <p className="text-sm mb-3">
+              {lang === 'tr' ? 'Henüz ilgi alanı seçmedin.' : "You haven't selected interests yet."}
+            </p>
+            <button onClick={() => setShowInterests(true)}
+              className="text-sm text-[var(--accent)] hover:underline font-medium">
+              {lang === 'tr' ? 'İlgi alanı seç →' : 'Select interests →'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Interest picker modal */}
+      {showInterests && (
+        <InterestPicker
+          isModal
+          initial={userPrefs}
+          onSave={(cats) => { setUserPrefs(cats); setShowInterests(false) }}
+          onSkip={() => setShowInterests(false)}
+        />
+      )}
     </div>
   )
 }

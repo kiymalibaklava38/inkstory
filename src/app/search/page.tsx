@@ -1,142 +1,234 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react' // 1. Suspense eklendi
 import { createClient } from '@/lib/supabase/client'
 import { StoryCard } from '@/components/hikaye/StoryCard'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { useLang } from '@/lib/i18n'
-import { Search, Loader2, X } from 'lucide-react'
+import { Search, Loader2, TrendingUp, Flame, Sparkles, BadgeCheck, Zap, Star } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ALL_CATEGORIES } from '@/lib/categories'
 
-const GENRES = {
-  en: [
-    { emoji: '💕', label: 'Romance',    slug: 'romantik' },
-    { emoji: '🧙', label: 'Fantasy',    slug: 'fantastik' },
-    { emoji: '👻', label: 'Horror',     slug: 'korku' },
-    { emoji: '🔍', label: 'Mystery',    slug: 'gizem' },
-    { emoji: '🚀', label: 'Sci-Fi',     slug: 'bilim-kurgu' },
-    { emoji: '⚔️', label: 'Adventure',  slug: 'macera' },
-    { emoji: '✍️', label: 'Poetry',     slug: 'siir' },
-    { emoji: '🏛️', label: 'Historical', slug: 'tarihi' },
-  ],
-  tr: [
-    { emoji: '💕', label: 'Romantik',    slug: 'romantik' },
-    { emoji: '🧙', label: 'Fantastik',   slug: 'fantastik' },
-    { emoji: '👻', label: 'Korku',       slug: 'korku' },
-    { emoji: '🔍', label: 'Gizem',       slug: 'gizem' },
-    { emoji: '🚀', label: 'Bilim Kurgu', slug: 'bilim-kurgu' },
-    { emoji: '⚔️', label: 'Macera',      slug: 'macera' },
-    { emoji: '✍️', label: 'Şiir',        slug: 'siir' },
-    { emoji: '🏛️', label: 'Tarihi',      slug: 'tarihi' },
-  ],
-}
-
-export default function SearchPage() {
-  const [query, setQuery]       = useState('')
-  const [results, setResults]   = useState<any[]>([])
-  const [loading, setLoading]   = useState(false)
-  const [searched, setSearched] = useState(false)
-  const supabase     = createClient()
-  const { t, lang }  = useLang()
+// 2. Tüm ana içeriği yeni bir iç bileşene taşıyoruz
+function DiscoverContent() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [discovery, setDiscovery] = useState<any>(null)
+  const [discLoading, setDiscLoading] = useState(true)
+  
   const searchParams = useSearchParams()
-  const router       = useRouter()
+  const router = useRouter()
+  const { lang } = useLang()
+
+  const catParam = searchParams.get('category')
 
   useEffect(() => {
-    const q = searchParams.get('q')
-    if (q) { setQuery(q); doSearch(q) }
+    fetch('/api/discovery')
+      .then(r => r.json())
+      .then(d => { setDiscovery(d); setDiscLoading(false) })
+      .catch(() => setDiscLoading(false))
   }, [])
 
-  const doSearch = async (q: string) => {
-    if (!q.trim()) return
-    setLoading(true); setSearched(true)
+  useEffect(() => {
+    const q = searchParams.get('q') || ''
+    setQuery(q)
+    if (!q && !catParam) return
 
-    const { data } = await supabase
-      .from('hikayeler')
-      .select('*, profiles(id,username,display_name,avatar_url), kategoriler(id,ad,slug,renk,ikon)')
-      .in('durum', ['yayinda', 'tamamlandi'])
-      .or(`baslik.ilike.%${q}%,aciklama.ilike.%${q}%`)
-      .order('goruntuleme', { ascending: false })
-      .limit(24)
+    setSearching(true)
+    const supabase = createClient()
 
-    setResults(data || [])
-    setLoading(false)
-  }
+    const run = async () => {
+      let query2 = supabase
+        .from('hikayeler')
+        .select('*, profiles(id,username,display_name,avatar_url,is_premium,is_verified,verification_badge), kategoriler(id,ad,slug,renk,ikon)')
+        .in('durum', ['yayinda', 'tamamlandi'])
+        .limit(20)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query)}`)
-      doSearch(query)
+      if (q) query2 = query2.ilike('baslik', `%${q}%`)
+      if (catParam) {
+        const { data: cat } = await supabase.from('kategoriler').select('id').eq('slug', catParam).single()
+        if (cat) query2 = query2.eq('kategori_id', cat.id)
+      }
+
+      const { data } = await query2.order('goruntuleme', { ascending: false })
+      setResults(data || [])
+      setSearching(false)
     }
+    run()
+  }, [searchParams])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`)
   }
 
-  const clear = () => { setQuery(''); setResults([]); setSearched(false); router.push('/search') }
-
-  const genres = GENRES[lang]
+  const isSearchMode = !!(searchParams.get('q') || catParam)
+  const genres = ALL_CATEGORIES.slice(0, 11)
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      <div className="text-center mb-10">
-        <h1 className="font-display text-4xl font-bold text-[var(--fg)] mb-3">{t.searchTitle}</h1>
-        <p className="text-[var(--fg-muted)]">{t.searchDesc}</p>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Search bar */}
+      <div className="mb-8">
+        <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
+          <Search style={{ width: 18, height: 18 }} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--fg-muted)]" />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={lang === 'tr' ? 'Hikaye, yazar veya kategori ara...' : 'Search stories, authors or categories...'}
+            className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] text-sm transition-all"
+          />
+          {query && (
+            <button type="button" onClick={() => { setQuery(''); router.push('/search') }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--fg-muted)] hover:text-[var(--fg)]">✕</button>
+          )}
+        </form>
       </div>
 
-      {/* Search box */}
-      <form onSubmit={handleSubmit} className="relative mb-10">
-        <Search style={{ width: 18, height: 18 }} className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--fg-muted)]" />
-        <input
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder={t.searchPlaceholder}
-          autoFocus
-          className="w-full pl-14 pr-14 py-4 rounded-2xl border-2 border-[var(--border)] bg-[var(--card)] text-[var(--fg)] text-lg placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] transition-all"
-        />
-        {query && (
-          <button type="button" onClick={clear}
-            className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--fg-muted)] hover:text-[var(--fg)]">
-            <X style={{ width: 18, height: 18 }} />
-          </button>
-        )}
-      </form>
+      {/* Category pills */}
+      <div className="flex flex-wrap gap-2 mb-8">
+        {genres.map(cat => (
+          <Link key={cat.slug} href={`/search?category=${cat.slug}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+              catParam === cat.slug
+                ? 'text-white border-transparent'
+                : 'border-[var(--border)] text-[var(--fg-muted)] hover:border-[var(--accent)]/40 hover:text-[var(--fg)]'
+            }`}
+            style={catParam === cat.slug ? { background: `linear-gradient(135deg,${cat.renk}dd,${cat.renk}99)` } : {}}
+          >
+            {cat.ikon} {lang === 'tr' ? cat.tr : cat.en}
+          </Link>
+        ))}
+      </div>
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 style={{ width: 28, height: 28 }} className="animate-spin text-[var(--accent)]" />
-        </div>
-      ) : searched ? (
-        results.length > 0 ? (
-          <div>
-            <p className="text-sm text-[var(--fg-muted)] mb-5">
-              <strong className="text-[var(--fg)]">{results.length}</strong> {t.resultsFor} "<em>{query}</em>"
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+      {isSearchMode ? (
+        <div>
+          <h2 className="font-display text-xl font-bold text-[var(--fg)] mb-5">
+            {catParam
+              ? `${ALL_CATEGORIES.find(c => c.slug === catParam)?.ikon} ${ALL_CATEGORIES.find(c => c.slug === catParam)?.[lang] || catParam}`
+              : `"${searchParams.get('q')}" ${lang === 'tr' ? 'için sonuçlar' : 'results'}`}
+          </h2>
+          {searching ? (
+            <div className="flex justify-center py-16"><Loader2 style={{ width: 24, height: 24 }} className="animate-spin text-[var(--accent)]" /></div>
+          ) : results.length === 0 ? (
+            <div className="text-center py-16 text-[var(--fg-muted)]">
+              <p className="text-4xl mb-3">🔍</p>
+              <p>{lang === 'tr' ? 'Sonuç bulunamadı.' : 'No results found.'}</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {results.map(s => <StoryCard key={s.id} story={s} lang={lang} />)}
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <p className="text-5xl mb-4">🔍</p>
-            <p className="font-display text-xl text-[var(--fg)]">{t.noResults}</p>
-            <p className="text-[var(--fg-muted)] mt-2 text-sm">"{query}" — {t.noResultsDesc}</p>
-          </div>
-        )
+          )}
+        </div>
       ) : (
-        <div>
-          <p className="text-sm text-[var(--fg-muted)] mb-4 font-medium">
-            {lang === 'tr' ? 'Türe göre keşfet' : 'Browse by genre'}
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {genres.map(({ emoji, label, slug }) => (
-              <button key={slug}
-                onClick={() => { setQuery(label); doSearch(label) }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)]/50 hover:bg-[var(--bg-subtle)] transition-all text-sm font-medium text-[var(--fg)]">
-                <span className="text-xl">{emoji}</span>
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="space-y-12">
+          {/* Discovery sections (Daily Pick, Verified, etc.) - Mevcut kodunun devamı buraya gelecek */}
+          {!discLoading && discovery?.dailyPick && (
+            <section>
+              <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
+                <Star style={{ width: 22, height: 22 }} className="text-amber-400" />
+                {lang === 'tr' ? 'Günün Seçimi' : "Editor's Pick Today"}
+              </h2>
+              {/* ... DailyPick Kartı ... */}
+              <div className="relative rounded-2xl overflow-hidden border border-amber-500/30"
+                style={{ background: 'linear-gradient(135deg,rgba(212,132,15,0.08),rgba(212,132,15,0.03))' }}>
+                <div className="flex flex-col md:flex-row gap-6 p-6">
+                  {discovery.dailyPick.kapak_url && (
+                    <img src={discovery.dailyPick.kapak_url} alt=""
+                      className="w-full md:w-48 h-48 md:h-auto rounded-xl object-cover flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white"
+                        style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+                        ⭐ {lang === 'tr' ? 'Günün Seçimi' : "Today's Pick"}
+                      </span>
+                    </div>
+                    <Link href={`/story/${discovery.dailyPick.slug}`}
+                      className="font-display text-2xl font-bold text-[var(--fg)] hover:text-[var(--accent)] transition-colors block mb-2">
+                      {discovery.dailyPick.baslik}
+                    </Link>
+                    {discovery.dailyPick.aciklama && (
+                      <p className="text-[var(--fg-muted)] text-sm mb-4 line-clamp-2">{discovery.dailyPick.aciklama}</p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {discovery.dailyPick.profiles?.avatar_url ? (
+                        <img src={discovery.dailyPick.profiles.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                          style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+                          {(discovery.dailyPick.profiles?.display_name || discovery.dailyPick.profiles?.username || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                      <span className="text-sm text-[var(--fg-muted)]">
+                        {discovery.dailyPick.profiles?.display_name || discovery.dailyPick.profiles?.username}
+                      </span>
+                      {discovery.dailyPick.profiles?.is_verified && (
+                        <VerifiedBadge size={14} badge={discovery.dailyPick.profiles.verification_badge} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {!discLoading && discovery?.verifiedStories?.length > 0 && (
+            <section>
+              <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
+                <BadgeCheck style={{ width: 22, height: 22 }} className="text-[var(--accent)]" fill="#d4840f" color="white" />
+                {lang === 'tr' ? 'Doğrulanmış Yazarların Eserleri' : 'From Verified Authors'}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {discovery.verifiedStories.map((s: any) => <StoryCard key={s.id} story={s} lang={lang} />)}
+              </div>
+            </section>
+          )}
+
+          {!discLoading && discovery?.risingStories?.length > 0 && (
+            <section>
+              <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
+                <Zap style={{ width: 22, height: 22 }} className="text-yellow-400" />
+                {lang === 'tr' ? 'Yükselen Kalemler' : 'Rising Writers'}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {discovery.risingStories.map((s: any) => (
+                  <div key={s.id} className="relative">
+                    <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-bold text-white flex items-center gap-1"
+                      style={{ background: 'linear-gradient(135deg,#f59e0b,#fbbf24)' }}>
+                      <Zap style={{ width: 9, height: 9 }} />
+                      {lang === 'tr' ? 'Yükselen' : 'Rising'}
+                    </div>
+                    <StoryCard story={s} lang={lang} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+          
+          {discLoading && (
+            <div className="flex justify-center py-20">
+              <Loader2 style={{ width: 28, height: 28 }} className="animate-spin text-[var(--accent)]" />
+            </div>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+// 3. Ana export bileşeni Suspense ile sarmalıyoruz
+export default function DiscoverPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center">
+        <Loader2 className="animate-spin text-[var(--accent)]" size={40} />
+      </div>
+    }>
+      <DiscoverContent />
+    </Suspense>
   )
 }

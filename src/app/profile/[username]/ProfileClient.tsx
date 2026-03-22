@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { StoryCard } from '@/components/hikaye/StoryCard'
 import { ProfileActions } from '@/components/profil/ProfileActions'
 import { BookOpen, Users, Eye, Calendar, Globe } from 'lucide-react'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { format } from 'date-fns'
 import { tr as dateFnsTr, enUS } from 'date-fns/locale'
 import { useLang } from '@/lib/i18n'
@@ -50,16 +51,26 @@ export function ProfileClient({
       {/* Profile header card */}
       <div className="rounded-3xl border border-[var(--border)] bg-[var(--card)] overflow-hidden mb-8">
         {/* Banner */}
-        <div className="h-32 md:h-44 relative"
-          style={{ background: 'linear-gradient(135deg, #060d18 0%, #1a2f4a 60%, #0d1f33 100%)' }}>
-          <div className="absolute inset-0 opacity-20"
-            style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 40px)' }} />
-          <div className="absolute right-8 top-4 opacity-10">
-            <svg width="80" height="80" viewBox="0 0 32 32" fill="none">
-              <path d="M16 5L10 17L16 14L22 17L16 5Z" fill="#e8a030"/>
-              <path d="M16 14L16 25" stroke="#e8a030" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
+        <div className="h-32 md:h-44 relative overflow-hidden"
+          style={profile.banner_url
+            ? {}
+            : { background: 'linear-gradient(135deg, #060d18 0%, #1a2f4a 60%, #0d1f33 100%)' }}>
+          {profile.banner_url ? (
+            <img src={profile.banner_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <>
+              <div className="absolute inset-0 opacity-20"
+                style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 40px)' }} />
+              <div className="absolute right-8 top-4 opacity-10">
+                <svg width="80" height="80" viewBox="0 0 32 32" fill="none">
+                  <path d="M16 5L10 17L16 14L22 17L16 5Z" fill="#e8a030"/>
+                  <path d="M16 14L16 25" stroke="#e8a030" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            </>
+          )}
+          {/* Banner gradient overlay for better avatar visibility */}
+          <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[var(--card)] to-transparent" />
         </div>
 
         <div className="px-6 pb-6">
@@ -97,6 +108,9 @@ export function ProfileClient({
                 title={lang === 'tr' ? 'Premium Üye' : 'Premium Member'}>
                 ⭐ Premium
               </span>
+            )}
+            {profile.is_verified && (
+              <VerifiedBadge size={22} badge={profile.verification_badge || 'author'} />
             )}
           </div>
           <p className="text-[var(--fg-muted)] text-sm mt-0.5">@{profile.username}</p>

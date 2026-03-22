@@ -138,7 +138,7 @@ export const UpdateProfileSchema = z.object({
 export const AiWriteSchema = z.object({
   action: z.enum([
     'continue', 'improve', 'emotional', 'dialogue',
-    'descriptive', 'plot_twist', 'next_chapter',
+    'descriptive', 'plot_twist', 'next_chapter', 'proofread',
   ]),
   text: z
     .string()

@@ -279,6 +279,9 @@ const translations = {
     featuredBadge: 'Featured',
     lockedBadge: 'Locked',
     readsLabel2: 'reads',
+
+    forYou: 'For You',
+    
     // 404
     notFound: 'Page not found',
     notFoundDesc: "The story or page you're looking for doesn't exist.",
@@ -488,26 +491,7 @@ const translations = {
     deleteAnnDesc: 'This announcement will be permanently removed.',
     onlyOneActive: 'Only one announcement can be active at a time.',
 
-    // Announcements
-    adminAnnouncements: 'Duyurular',
-    newAnnouncement: 'Yeni Duyuru',
-    announcementTitle: 'Başlık',
-    announcementMessage: 'Mesaj',
-    announcementActive: 'Aktif',
-    announcementInactive: 'Pasif',
-    activateAnn: 'Aktifleştir',
-    deactivateAnn: 'Pasifleştir',
-    editAnn: 'Düzenle',
-    deleteAnn: 'Sil',
-    saveAnn: 'Kaydet',
-    cancelAnn: 'İptal',
-    createAnn: 'Oluştur',
-    annTitlePlaceholder: 'Duyuru başlığı...',
-    annMessagePlaceholder: 'Duyuru mesajını buraya yaz...',
-    noAnnouncements: 'Henüz duyuru yok.',
-    deleteAnnConfirm: 'Duyuru silinsin mi?',
-    deleteAnnDesc: 'Bu duyuru kalıcı olarak silinir.',
-    onlyOneActive: 'Aynı anda yalnızca bir duyuru aktif olabilir.',
+    
     // Admin panel
     adminPanelTitle: 'Admin Paneli',
     adminOverview: 'Genel Bakış',
@@ -580,6 +564,9 @@ const translations = {
     featuredBadge: 'Öne Çıkan',
     lockedBadge: 'Kilitli',
     readsLabel2: 'okuma',
+
+    forYou: 'Sana Özel',
+  
     // 404
     notFound: 'Sayfa bulunamadı',
     notFoundDesc: 'Aradığın hikaye veya sayfa mevcut değil.',

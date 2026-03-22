@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { Heart, BookMarked, UserPlus, UserMinus, Send, Loader2, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useLang } from '@/lib/i18n'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -143,8 +144,16 @@ export function FollowButton({ profileId, initialFollowing, hasUser }: {
 
 // ── Comments Section ──────────────────────────────────────
 interface Comment {
-  id: string; icerik: string; created_at: string
-  profiles: { username: string; display_name: string | null; avatar_url: string | null }
+  id: string; 
+  icerik: string; 
+  created_at: string;
+  profiles: { 
+    username: string; 
+    display_name: string | null; 
+    avatar_url: string | null;
+    is_verified?: boolean;             // Bu satırı ekle
+    verification_badge?: string | null; // Bu satırı ekle
+  }
 }
 
 export function CommentsSection({ storyId, userId }: { storyId: string; userId: string | null }) {
@@ -161,7 +170,7 @@ export function CommentsSection({ storyId, userId }: { storyId: string; userId: 
     setLoading(true)
     const { data } = await supabase
       .from('yorumlar')
-      .select('id,icerik,created_at,profiles(username,display_name,avatar_url)')
+      .select('id,icerik,created_at,profiles(username,display_name,avatar_url,is_verified,verification_badge)')
       .eq('hikaye_id', storyId).is('ust_yorum_id', null)
       .order('created_at', { ascending: false }).limit(20)
     setComments((data as any) || [])
@@ -247,11 +256,14 @@ export function CommentsSection({ storyId, userId }: { storyId: string; userId: 
                     </div>
                   )}
                   <div className="flex-1">
-                    <div className="flex items-baseline gap-2 mb-1">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       <Link href={`/profile/${c.profiles.username}`}
                         className="text-sm font-medium text-[var(--fg)] hover:text-[var(--accent)] transition-colors">
                         {c.profiles.display_name || c.profiles.username}
                       </Link>
+                      {c.profiles.is_verified && (
+                        <VerifiedBadge size={13} badge={c.profiles.verification_badge || 'author'} />
+                      )}
                       <span className="text-xs text-[var(--fg-muted)]">
                         {format(new Date(c.created_at),
                           lang === 'tr' ? 'd MMM yyyy' : 'MMM d, yyyy',

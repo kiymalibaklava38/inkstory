@@ -7,19 +7,11 @@ import { FollowButton } from '@/components/profil/FollowButton'
 import { CommentsSection } from '@/components/hikaye/CommentsSection'
 import { Eye, BookOpen, Clock, Calendar, Tag, ChevronRight } from 'lucide-react'
 import { useLang } from '@/lib/i18n'
+import { getCategoryName } from '@/lib/categories'
 import { format } from 'date-fns'
 import { tr as dateFnsTr, enUS } from 'date-fns/locale'
-
-const CATEGORY_NAMES: Record<string, Record<string, string>> = {
-  romantik:      { en: 'Romance',    tr: 'Romantik' },
-  fantastik:     { en: 'Fantasy',    tr: 'Fantastik' },
-  korku:         { en: 'Horror',     tr: 'Korku' },
-  gizem:         { en: 'Mystery',    tr: 'Gizem' },
-  'bilim-kurgu': { en: 'Sci-Fi',     tr: 'Bilim Kurgu' },
-  macera:        { en: 'Adventure',  tr: 'Macera' },
-  siir:          { en: 'Poetry',     tr: 'Şiir' },
-  tarihi:        { en: 'Historical', tr: 'Tarihi' },
-}
+import { ContinueReading } from '@/components/hikaye/ContinueReading'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 
 interface Props {
   story: any
@@ -38,9 +30,7 @@ export function StoryDetailClient({
   const locale = lang === 'tr' ? dateFnsTr : enUS
   const cat = story.kategoriler
 
-  const catName = cat
-    ? (CATEGORY_NAMES[cat.slug]?.[lang] ?? cat.ad)
-    : null
+  const catName = cat ? getCategoryName(cat.slug, lang) : null
 
   const totalWords = chapters.reduce((a: number, c: any) => a + (c.kelime_sayisi || 0), 0)
   const readMins   = Math.ceil(totalWords / 200)
@@ -69,6 +59,15 @@ export function StoryDetailClient({
                 </div>
               )}
             </div>
+
+            {/* Continue reading / progress */}
+            {userId && chapters.length > 0 && (
+              <ContinueReading
+                storyId={story.id}
+                storySlug={story.slug}
+                totalChapters={chapters.length}
+              />
+            )}
 
             {/* Action buttons */}
             <div className="flex gap-2 mb-5">
@@ -140,9 +139,14 @@ export function StoryDetailClient({
                 </div>
               )}
               <div>
-                <p className="font-medium text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors">
-                  {story.profiles.display_name || story.profiles.username}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium text-[var(--fg)] group-hover:text-[var(--accent)] transition-colors">
+                    {story.profiles.display_name || story.profiles.username}
+                  </p>
+                  {story.profiles.is_verified && (
+                    <VerifiedBadge size={15} badge={story.profiles.verification_badge || 'author'} />
+                  )}
+                </div>
                 <p className="text-sm text-[var(--fg-muted)]">@{story.profiles.username}</p>
               </div>
             </Link>

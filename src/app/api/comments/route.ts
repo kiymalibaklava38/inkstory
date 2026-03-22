@@ -10,24 +10,30 @@ export async function POST(req: NextRequest) {
   const limited = await checkRateLimit(req, commentLimiter)
   if (limited) return limited
 
-  // Auth
+  // Auth - 'user' kontrolünü ekledik
   const { user, error: authError } = await requireAuth()
-  if (authError) return authError
+  if (authError || !user) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Parse & validate
   let body: unknown
-  try { body = await req.json() }
-  catch { return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }) }
+  try { 
+    body = await req.json() 
+  } catch { 
+    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }) 
+  }
 
+  // Veri doğrulama ve null kontrolü
   const { data, error: validErr } = parseOrError(CommentSchema, body)
-  if (validErr) return NextResponse.json({ error: validErr }, { status: 400 })
+  if (validErr || !data) {
+    return NextResponse.json({ error: validErr || 'Veri bulunamadı' }, { status: 400 })
+  }
 
-  // Sanitize comment text — strip any HTML tags, plain text only
+  // DİKKAT: Burada sadece BİR KEZ tanımlama yapıyoruz
   const safeContent = escapeHtml(data.content)
 
   const supabase = await createClient()
 
-  // Verify the story exists and is published (prevent commenting on private stories)
+  // Hikaye kontrolü
   const { data: story } = await supabase
     .from('hikayeler')
     .select('id, durum')
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Story not found.' }, { status: 404 })
   }
 
-  // If reply, verify parent comment belongs to the same story
+  // Yanıt ise üst yorum kontrolü
   if (data.parentId) {
     const { data: parent } = await supabase
       .from('yorumlar')
@@ -53,16 +59,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Veritabanına ekleme
   const { data: comment, error } = await supabase
     .from('yorumlar')
     .insert({
       hikaye_id:    data.storyId,
       bolum_id:     data.chapterId ?? null,
-      yazar_id:     user.id,
+      yazar_id:     user.id, // user artık kesinlikle var
       icerik:       safeContent,
       ust_yorum_id: data.parentId ?? null,
     })
-    .select('id, icerik, created_at, profiles(username, display_name, avatar_url)')
+    .select('id, icerik, created_at, profiles(username, display_name, avatar_url, is_verified, verification_badge)')
     .single()
 
   if (error) {

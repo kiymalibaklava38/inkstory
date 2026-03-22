@@ -3,6 +3,9 @@ import { checkRateLimit, aiLimiter } from '@/lib/ratelimit'
 import { requireAuth } from '@/lib/auth-helpers'
 import { parseOrError, AiWriteSchema } from '@/lib/validation'
 
+const FREE_ACTIONS  = ['continue', 'improve', 'emotional']
+const PREMIUM_ACTIONS = ['dialogue', 'descriptive', 'plot_twist', 'next_chapter', 'proofread']
+
 const ACTION_PROMPTS: Record<string, string> = {
   continue:
     'Continue this story naturally, matching the established tone, voice, and style. Write the next 2–3 paragraphs. Output only the new story text — no explanations or meta-commentary.',
@@ -18,6 +21,24 @@ const ACTION_PROMPTS: Record<string, string> = {
     'Suggest a compelling and surprising plot twist that could naturally emerge from this story. Describe how it could unfold in 2–3 paragraphs. Output only the suggestion.',
   next_chapter:
     'Based on this story so far, suggest a compelling direction and key events for the next chapter. Include a chapter title and a brief outline. Output only the suggestion.',
+  proofread:
+    `You are a professional editor. Carefully proofread the following text and identify ALL issues. 
+Respond in this exact format (in the same language as the text):
+
+## 📝 Genel Değerlendirme
+[1-2 sentence overall assessment]
+
+## ❌ Hatalar ve Sorunlar
+[List each issue with line/quote reference, category label, and fix suggestion. Categories: Yazım Hatası, Dilbilgisi, Tutarsızlık, Anlatım, Noktalama]
+
+## ✅ Güçlü Yanlar  
+[What works well in the text]
+
+## 💡 Öneriler
+[Top 3 actionable improvement suggestions]
+
+If text is in Turkish, respond entirely in Turkish. If in English, respond in English.
+Be specific, cite exact phrases from the text, and be constructive.`,
 }
 
 export async function POST(req: NextRequest) {
@@ -59,6 +80,21 @@ export async function POST(req: NextRequest) {
       }, { status: 402 })
     }
 
+    // ── Premium-only action check ───────────────────────────
+    // Parse action early to check
+    let earlyAction: string | undefined
+    try {
+      const b = await req.clone().json()
+      earlyAction = b?.action
+    } catch {}
+
+    if (earlyAction && PREMIUM_ACTIONS.includes(earlyAction) && !isPremium) {
+      return NextResponse.json({
+        error: 'premium_required',
+        action: earlyAction,
+      }, { status: 403 })
+    }
+
     // Sayacı artır
     await supabase.rpc('increment_ai_calls', { p_user_id: user.id })
   }
@@ -87,7 +123,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 6. Call Anthropic (server-side only) ────────────────
-  const { action, text, storyTitle } = data
+  const { action, text, storyTitle } = data!
 
   const systemPrompt = [
     'You are an expert creative writing assistant embedded inside a story editor.',
@@ -110,7 +146,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model:      'claude-sonnet-4-20250514',
-        max_tokens: 1024,
+        max_tokens: action === 'proofread' ? 2048 : 1024,
         system:     systemPrompt,
         messages:   [{ role: 'user', content: `${ACTION_PROMPTS[action]}\n\n---\n${contextText}` }],
       }),
@@ -146,13 +182,10 @@ export async function POST(req: NextRequest) {
     try {
       const supabase = await (await import('@/lib/supabase/server')).createClient()
       await supabase.from('ai_usage_logs').insert({
-        user_id:       user.id,
+        user_id: user.id,
         action,
-        prompt_length: contextText.length,
-        result_length: suggestion.length,
-        story_title:   storyTitle?.slice(0, 200) || null,
       })
-    } catch { /* non-critical — don't fail the request */ }
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ suggestion })
 

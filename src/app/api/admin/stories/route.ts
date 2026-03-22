@@ -3,12 +3,22 @@ import { requireAdmin } from '@/lib/auth-helpers'
 import { checkRateLimit, apiLimiter } from '@/lib/ratelimit'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-
+// 7. satır civarı
 const ModerateStorySchema = z.object({
   storyId: z.string().uuid(),
-  action:  z.enum(['feature','unfeature','lock','unlock','unpublish','delete','flag','unflag']),
+  action: z.enum([
+    'feature',
+    'unfeature',
+    'lock',
+    'unlock',
+    'unpublish',
+    'delete',
+    'flag',
+    'unflag',
+    'daily_pick',        // <-- Bunu ekle
+    'remove_daily_pick'  // <-- Bunu ekle
+  ]),
 })
-
 export async function GET(req: NextRequest) {
   const limited = await checkRateLimit(req, apiLimiter)
   if (limited) return limited
@@ -73,6 +83,14 @@ export async function PATCH(req: NextRequest) {
     case 'unpublish': updates.durum = 'taslak';    break
     case 'flag':      updates.moderation_status = 'flagged';  break
     case 'unflag':    updates.moderation_status = 'ok';       break
+    case 'daily_pick':
+      updates.is_daily_pick = true
+      updates.daily_pick_at = new Date().toISOString()
+      break
+    case 'remove_daily_pick':
+      updates.is_daily_pick = false
+      updates.daily_pick_at = null
+      break
     case 'delete':
       await supabase.from('hikayeler').delete().eq('id', storyId)
       await supabase.rpc('log_audit', { p_action: 'admin_delete_story', p_table_name: 'hikayeler', p_record_id: storyId, p_metadata: null })

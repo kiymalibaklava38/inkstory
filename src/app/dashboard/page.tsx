@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useLang } from '@/lib/i18n'
 import Link from 'next/link'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import {
   PenLine, BookOpen, Eye, Globe, Lock, CheckCircle,
-  ChevronDown, ChevronRight, Trash2, Settings, Loader2, Plus, BarChart3
+  ChevronDown, ChevronRight, Trash2, Settings, Loader2, Plus, BarChart3, Pencil
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -19,7 +20,7 @@ export default function DashboardPage() {
   const [confirm, setConfirm]   = useState<string | null>(null)
   const router   = useRouter()
   const supabase = createClient()
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
   useEffect(() => {
     const init = async () => {
@@ -141,7 +142,7 @@ export default function DashboardPage() {
             const isOpen = expanded === story.id
 
             return (
-              <div key={story.id} className="bg-[var(--card)] rounded-2xl border border-[var(--border)] overflow-hidden">
+              <div key={story.id} className="bg-[var(--card)] rounded-2xl border border-[var(--border)]">
                 {/* Story row */}
                 <div className="flex items-center gap-3 p-4">
                   <button onClick={() => toggle(story.id)} className="text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors flex-shrink-0">
@@ -171,11 +172,16 @@ export default function DashboardPage() {
                     <button className="p-2 rounded-lg text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all">
                       <Settings style={{ width: 15, height: 15 }} />
                     </button>
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-xl overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-[var(--card)] rounded-xl border border-[var(--border)] shadow-xl overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-50">
                       <Link href={`/story/${story.slug}`}
                         className="flex items-center gap-2 px-4 py-2.5 text-xs text-[var(--fg-muted)] hover:bg-[var(--bg-subtle)] hover:text-[var(--fg)]">
                         <Eye style={{ width: 13, height: 13 }} /> {t.view}
                       </Link>
+                      <Link href={`/write/edit?id=${story.id}`}
+                        className="flex items-center gap-2 px-4 py-2.5 text-xs text-[var(--accent)] hover:bg-[var(--accent)]/10">
+                        <Pencil style={{ width: 13, height: 13 }} /> {lang === 'tr' ? 'Hikayeyi Düzenle' : 'Edit Story'}
+                      </Link>
+                      <hr className="border-[var(--border)]" />
                       {story.durum !== 'yayinda' && (
                         <button onClick={() => changeStatus(story.id, 'yayinda')}
                           className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-emerald-400 hover:bg-emerald-500/10">
@@ -219,7 +225,7 @@ export default function DashboardPage() {
                         <Loader2 style={{ width: 18, height: 18 }} className="animate-spin text-[var(--fg-muted)]" />
                       </div>
                     ) : chapters[story.id].length === 0 ? (
-                      <p className="text-sm text-[var(--fg-muted)] text-center py-3">lang === 'tr' ? 'Henüz bölüm yok.' : 'No chapters yet.'</p>
+                      <p className="text-sm text-[var(--fg-muted)] text-center py-3">{lang === 'tr' ? 'Henüz bölüm yok.' : 'No chapters yet.'}</p>
                     ) : (
                       <div className="space-y-1.5">
                         {chapters[story.id].map(ch => (

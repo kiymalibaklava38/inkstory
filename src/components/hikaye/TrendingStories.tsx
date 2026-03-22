@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Eye, Heart, MessageCircle, BookMarked, TrendingUp, Flame, Loader2 } from 'lucide-react'
 import { useLang } from '@/lib/i18n'
+import { getCategoryName } from '@/lib/categories'
 
 interface TrendingStory {
   id:            string
@@ -18,17 +19,6 @@ interface TrendingStory {
   bookmarks_24h: number
   profiles:      { username: string; display_name: string | null; avatar_url: string | null; is_premium?: boolean }
   kategoriler?:  { ad: string; ikon: string; renk: string; slug: string } | null
-}
-
-const CATEGORY_NAMES: Record<string, Record<string, string>> = {
-  romantik:      { en: 'Romance',    tr: 'Romantik' },
-  fantastik:     { en: 'Fantasy',    tr: 'Fantastik' },
-  korku:         { en: 'Horror',     tr: 'Korku' },
-  gizem:         { en: 'Mystery',    tr: 'Gizem' },
-  'bilim-kurgu': { en: 'Sci-Fi',     tr: 'Bilim Kurgu' },
-  macera:        { en: 'Adventure',  tr: 'Macera' },
-  siir:          { en: 'Poetry',     tr: 'Şiir' },
-  tarihi:        { en: 'Historical', tr: 'Tarihi' },
 }
 
 function fmt(n: number): string {
@@ -101,7 +91,7 @@ export function TrendingStories() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         {topThree.map((story, i) => {
           const cat = story.kategoriler
-          const catName = cat ? (CATEGORY_NAMES[cat.slug]?.[lang] ?? cat.ad) : null
+          const catName = cat ? getCategoryName(cat.slug, lang) : null
 
           return (
             <Link key={story.id} href={`/story/${story.slug}`} className="group">
