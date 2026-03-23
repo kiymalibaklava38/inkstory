@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react' // 1. Suspense eklendi
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { StoryCard } from '@/components/hikaye/StoryCard'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
@@ -10,20 +10,19 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ALL_CATEGORIES } from '@/lib/categories'
 
-// 2. Tüm ana içeriği yeni bir iç bileşene taşıyoruz
 function DiscoverContent() {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
+  const [query, setQuery]       = useState('')
+  const [results, setResults]   = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [discovery, setDiscovery] = useState<any>(null)
   const [discLoading, setDiscLoading] = useState(true)
-  
   const searchParams = useSearchParams()
   const router = useRouter()
   const { lang } = useLang()
 
   const catParam = searchParams.get('category')
 
+  // Load discovery feed
   useEffect(() => {
     fetch('/api/discovery')
       .then(r => r.json())
@@ -31,6 +30,7 @@ function DiscoverContent() {
       .catch(() => setDiscLoading(false))
   }, [])
 
+  // Search
   useEffect(() => {
     const q = searchParams.get('q') || ''
     setQuery(q)
@@ -65,10 +65,12 @@ function DiscoverContent() {
   }
 
   const isSearchMode = !!(searchParams.get('q') || catParam)
-  const genres = ALL_CATEGORIES.slice(0, 11)
+
+  const genres = ALL_CATEGORIES.slice(0, 11) // genre group
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+
       {/* Search bar */}
       <div className="mb-8">
         <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
@@ -103,6 +105,7 @@ function DiscoverContent() {
         ))}
       </div>
 
+      {/* Search results */}
       {isSearchMode ? (
         <div>
           <h2 className="font-display text-xl font-bold text-[var(--fg)] mb-5">
@@ -124,15 +127,20 @@ function DiscoverContent() {
           )}
         </div>
       ) : (
+        /* Discovery Feed */
         <div className="space-y-12">
-          {/* Discovery sections (Daily Pick, Verified, etc.) - Mevcut kodunun devamı buraya gelecek */}
+
+          {/* ── Günün Seçimi ─────────────────────────────── */}
           {!discLoading && discovery?.dailyPick && (
             <section>
               <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
                 <Star style={{ width: 22, height: 22 }} className="text-amber-400" />
                 {lang === 'tr' ? 'Günün Seçimi' : "Editor's Pick Today"}
+                <span className="ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold text-white animate-pulse"
+                  style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+                  24H
+                </span>
               </h2>
-              {/* ... DailyPick Kartı ... */}
               <div className="relative rounded-2xl overflow-hidden border border-amber-500/30"
                 style={{ background: 'linear-gradient(135deg,rgba(212,132,15,0.08),rgba(212,132,15,0.03))' }}>
                 <div className="flex flex-col md:flex-row gap-6 p-6">
@@ -176,6 +184,7 @@ function DiscoverContent() {
             </section>
           )}
 
+          {/* ── Doğrulanmış Yazarların Eserleri ──────────── */}
           {!discLoading && discovery?.verifiedStories?.length > 0 && (
             <section>
               <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
@@ -188,44 +197,74 @@ function DiscoverContent() {
             </section>
           )}
 
+          {/* ── Yükselen Kalemler ─────────────────────────── */}
           {!discLoading && discovery?.risingStories?.length > 0 && (
             <section>
-              <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2 mb-5">
-                <Zap style={{ width: 22, height: 22 }} className="text-yellow-400" />
-                {lang === 'tr' ? 'Yükselen Kalemler' : 'Rising Writers'}
-              </h2>
+              <div className="flex items-end justify-between mb-5">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2">
+                    <Zap style={{ width: 22, height: 22 }} className="text-yellow-400" />
+                    {lang === 'tr' ? 'Yükselen Kalemler' : 'Rising Writers'}
+                  </h2>
+                  <p className="text-sm text-[var(--fg-muted)] mt-1">
+                    {lang === 'tr' ? 'Son 24 saatte ivme kazanan yeni yazarlar' : 'New writers gaining momentum in the last 24h'}
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {discovery.risingStories.map((s: any) => (
-                  <div key={s.id} className="relative">
-                    <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full text-[10px] font-bold text-white flex items-center gap-1"
-                      style={{ background: 'linear-gradient(135deg,#f59e0b,#fbbf24)' }}>
-                      <Zap style={{ width: 9, height: 9 }} />
-                      {lang === 'tr' ? 'Yükselen' : 'Rising'}
-                    </div>
-                    <StoryCard story={s} lang={lang} />
-                  </div>
+                  <StoryCard key={s.id} story={s} lang={lang} topBadge={{
+                    label: lang === 'tr' ? '⚡ Yükselen' : '⚡ Rising',
+                    color: 'linear-gradient(135deg,#f59e0b,#fbbf24)',
+                  }} />
                 ))}
               </div>
             </section>
           )}
-          
+
+          {/* ── Şanslı İlk 100 (yeni çıkanlar boost) ──────── */}
+          {!discLoading && discovery?.newBoosted?.length > 0 && (
+            <section>
+              <div className="flex items-end justify-between mb-5">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-[var(--fg)] flex items-center gap-2">
+                    <Sparkles style={{ width: 22, height: 22 }} className="text-emerald-400" />
+                    {lang === 'tr' ? 'Yeni Çıkanlar' : 'Fresh Releases'}
+                  </h2>
+                  <p className="text-sm text-[var(--fg-muted)] mt-1">
+                    {lang === 'tr' ? 'İlk 100 okumaya yaklaşan yeni hikayeler' : 'New stories approaching their first 100 reads'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {discovery.newBoosted.map((s: any) => (
+                  <StoryCard key={s.id} story={s} lang={lang} topBadge={{
+                    label: lang === 'tr' ? '✨ Yeni' : '✨ New',
+                    color: 'linear-gradient(135deg,#2d9f6a,#3dbd82)',
+                  }} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Loading skeleton */}
           {discLoading && (
             <div className="flex justify-center py-20">
               <Loader2 style={{ width: 28, height: 28 }} className="animate-spin text-[var(--accent)]" />
             </div>
           )}
+
         </div>
       )}
     </div>
   )
 }
 
-// 3. Ana export bileşeni Suspense ile sarmalıyoruz
 export default function DiscoverPage() {
   return (
     <Suspense fallback={
-      <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center">
-        <Loader2 className="animate-spin text-[var(--accent)]" size={40} />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 style={{ width: 28, height: 28 }} className="animate-spin text-[var(--accent)]" />
       </div>
     }>
       <DiscoverContent />

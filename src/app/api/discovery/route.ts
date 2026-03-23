@@ -23,14 +23,24 @@ export async function GET(req: NextRequest) {
 
     // ── Doğrulanmış Yazarların Eserleri ───────────────────
     cached('verified-stories', async () => {
+      // Önce doğrulanmış yazarların ID'lerini çek
+      const { data: verifiedProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('is_verified', true)
+
+      if (!verifiedProfiles || verifiedProfiles.length === 0) return []
+
+      const verifiedIds = verifiedProfiles.map((p: any) => p.id)
+
       const { data } = await supabase
         .from('hikayeler')
         .select(storySelect)
         .in('durum', ['yayinda', 'tamamlandi'])
-        .eq('profiles.is_verified', true)
+        .in('yazar_id', verifiedIds)
         .order('goruntuleme', { ascending: false })
         .limit(6)
-      return (data || []).filter((s: any) => s.profiles?.is_verified)
+      return data || []
     }),
 
     // ── Günün Seçimi ──────────────────────────────────────
@@ -63,7 +73,6 @@ export async function GET(req: NextRequest) {
   ])
 
   // ── Yükselen Kalemler (rising writers via engagement) ──
-  // Fetch engagement logs from last 24h
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   const { data: recentEngagement } = await supabase
     .from('engagement_logs')
@@ -73,11 +82,11 @@ export async function GET(req: NextRequest) {
   let risingStories: any[] = []
 
   if (recentEngagement && recentEngagement.length > 0) {
-    // Count per story
     const engMap: Record<string, { reads: number; likes: number }> = {}
     for (const e of recentEngagement) {
       if (!engMap[e.hikaye_id]) engMap[e.hikaye_id] = { reads: 0, likes: 0 }
-      if (e.event_type === 'read') engMap[e.hikaye_id].reads++
+      // 'read' ve 'view' ikisini de say
+      if (e.event_type === 'read' || e.event_type === 'view') engMap[e.hikaye_id].reads++
       if (e.event_type === 'like') engMap[e.hikaye_id].likes++
     }
 
@@ -88,9 +97,7 @@ export async function GET(req: NextRequest) {
         .select(storySelect)
         .in('id', storyIds)
         .in('durum', ['yayinda', 'tamamlandi'])
-        .eq('profiles.is_verified', false)
 
-      // Score by momentum
       risingStories = (stories || [])
         .filter((s: any) => !s.profiles?.is_verified)
         .map((s: any) => ({

@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       engMap[e.hikaye_id] = { reads: 0, likes: 0, comments: 0, bookmarks: 0 }
     }
     const m = engMap[e.hikaye_id]
-    if (e.event_type === 'read')     m.reads++
+    if (e.event_type === 'read' || e.event_type === 'view') m.reads++
     if (e.event_type === 'like')     m.likes++
     if (e.event_type === 'comment')  m.comments++
     if (e.event_type === 'bookmark') m.bookmarks++

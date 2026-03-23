@@ -88,7 +88,7 @@ export function TrendingStories() {
       </div>
 
       {/* Top 3 — big cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4">
         {topThree.map((story, i) => {
           const cat = story.kategoriler
           const catName = cat ? getCategoryName(cat.slug, lang) : null
@@ -187,7 +187,7 @@ export function TrendingStories() {
             const cat = story.kategoriler
             return (
               <Link key={story.id} href={`/story/${story.slug}`}
-                className={`flex items-center gap-4 px-5 py-4 hover:bg-[var(--bg-subtle)] transition-colors group ${i < restStories.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>
+                className={`flex items-center gap-3 px-3 sm:px-5 py-3 sm:py-4 hover:bg-[var(--bg-subtle)] transition-colors group ${i < restStories.length - 1 ? 'border-b border-[var(--border)]' : ''}`}>
 
                 {/* Rank */}
                 <span className="text-sm font-black text-[var(--fg-muted)] w-5 text-center flex-shrink-0">

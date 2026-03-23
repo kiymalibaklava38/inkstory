@@ -16,9 +16,10 @@ interface Props {
   story: Story
   featured?: boolean
   lang?: Lang
+  topBadge?: { label: string; color: string }
 }
 
-export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
+export function StoryCard({ story, featured = false, lang = 'en', topBadge }: Props) {
   const cat = story.kategoriler
   const catName = cat ? getCategoryName(cat.slug, lang) : null
 
@@ -40,28 +41,31 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
             </div>
           )}
 
-          {/* Category badge - top left */}
+          {/* TOP LEFT: category badge */}
           {cat && catName && (
-            <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-medium backdrop-blur-md"
-              style={{ backgroundColor: `${cat.renk}cc` }}>
-              <span>{cat.ikon}</span>{catName}
+            <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-medium backdrop-blur-md"
+              style={{ backgroundColor: `${cat.renk}dd` }}>
+              <span>{cat.ikon}</span>
+              <span>{catName}</span>
             </div>
           )}
 
-          {/* Featured badge - top right */}
-          {story.is_featured && (
-            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-white text-xs font-bold backdrop-blur-sm flex items-center gap-1"
+          {/* TOP RIGHT: external badge OR status badge */}
+          {topBadge ? (
+            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white"
+              style={{ background: topBadge.color }}>
+              {topBadge.label}
+            </div>
+          ) : story.is_featured ? (
+            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-white text-[10px] font-bold backdrop-blur-sm"
               style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
               ⭐ {lang === 'tr' ? 'Öne Çıkan' : 'Featured'}
             </div>
-          )}
-
-          {/* Status badge — bottom right, doesn't overlap anything */}
-          {!story.is_featured && story.durum === 'tamamlandi' && (
-            <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-emerald-500/90 text-white text-xs font-medium backdrop-blur-sm">
-              {lang === 'tr' ? '✓ Tamamlandı' : '✓ Complete'}
+          ) : story.durum === 'tamamlandi' ? (
+            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-emerald-500/90 text-white text-[10px] font-medium">
+              ✓ {lang === 'tr' ? 'Tamamlandı' : 'Complete'}
             </div>
-          )}
+          ) : null}
 
           <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[var(--card)] to-transparent" />
         </div>
@@ -80,30 +84,28 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
 
           {/* Author + stats */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {story.profiles?.avatar_url ? (
-                <img src={story.profiles.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                <img src={story.profiles.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover flex-shrink-0" />
               ) : (
-                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
                   {(story.profiles?.display_name || story.profiles?.username || '?')[0].toUpperCase()}
                 </div>
               )}
-              <span className="text-xs text-[var(--fg-muted)] truncate max-w-[80px]">
+              <span className="text-xs text-[var(--fg-muted)] truncate">
                 {story.profiles?.display_name || story.profiles?.username}
               </span>
               {story.profiles?.is_premium && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
-                  ⭐
-                </span>
+                  style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>⭐</span>
               )}
               {story.profiles?.is_verified && (
                 <VerifiedBadge size={12} badge={story.profiles.verification_badge || 'author'} />
               )}
             </div>
 
-            <div className="flex items-center gap-1 text-[var(--fg-muted)]">
+            <div className="flex items-center gap-1 text-[var(--fg-muted)] flex-shrink-0">
               <Eye style={{ width: 12, height: 12 }} />
               <span className="text-xs">
                 {story.goruntuleme >= 1000
