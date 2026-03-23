@@ -115,14 +115,18 @@ export function HomeClient({
           <div className="flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1">
               <div className="inline-flex items-center gap-2 text-[var(--accent)] text-sm font-medium mb-4">
-                <Sparkles style={{ width: 14, height: 14 }} /> AI Writing Assistant
+                <Sparkles style={{ width: 14, height: 14 }} />
+                {lang === 'tr' ? 'AI Yazma Asistanı' : 'AI Writing Assistant'}
               </div>
               <h2 className="font-display text-4xl font-bold text-[var(--fg)] mb-4 leading-tight">
                 {t.neverBlank}
               </h2>
               <p className="text-[var(--fg-muted)] leading-relaxed mb-6">{t.aiDesc}</p>
               <div className="grid grid-cols-2 gap-3">
-                {['Continue with AI', 'Improve writing', 'Add emotion', 'Suggest plot twist'].map(f => (
+                {(lang === 'tr'
+                  ? ['AI ile Devam Et', 'Yazıyı Geliştir', 'Daha Duygusal Yap', 'Olay Örgüsü Öner']
+                  : ['Continue with AI', 'Improve writing', 'Add emotion', 'Suggest plot twist']
+                ).map(f => (
                   <div key={f} className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] flex-shrink-0" />
                     {f}
@@ -141,13 +145,24 @@ export function HomeClient({
                   <span className="ml-2 text-xs text-[var(--fg-muted)] font-mono">chapter-1.ink</span>
                 </div>
                 <div className="p-4 font-reading text-sm text-[var(--fg)] leading-relaxed">
-                  <p className="mb-3">The storm had been building for days, but Elena hadn't noticed...</p>
+                  <p className="mb-3">
+                    {lang === 'tr'
+                      ? 'Fırtına günlerdir birikiyordu ama Elena fark etmemişti...'
+                      : "The storm had been building for days, but Elena hadn't noticed..."}
+                  </p>
                   <div className="border-l-2 border-[var(--accent)] pl-3 text-[var(--accent)] opacity-80 italic text-xs">
-                    <span className="text-[10px] font-sans font-semibold not-italic block mb-1 opacity-60">AI suggestion</span>
-                    She was too busy watching the horizon, where dark clouds gathered like an unspoken threat...
+                    <span className="text-[10px] font-sans font-semibold not-italic block mb-1 opacity-60">
+                      {lang === 'tr' ? 'AI önerisi' : 'AI suggestion'}
+                    </span>
+                    {lang === 'tr'
+                      ? 'Ufku izlemekle meşguldü; kara bulutlar söylenmemiş bir tehdit gibi toplanıyordu...'
+                      : 'She was too busy watching the horizon, where dark clouds gathered like an unspoken threat...'}
                   </div>
                   <div className="flex gap-2 mt-3">
-                    {['Accept', 'Retry', 'Reject'].map((a, i) => (
+                    {(lang === 'tr'
+                      ? ['Kabul Et', 'Tekrar', 'Reddet']
+                      : ['Accept', 'Retry', 'Reject']
+                    ).map((a, i) => (
                       <button key={a} className={`text-[10px] px-2 py-1 rounded-md font-medium ${
                         i === 0 ? 'bg-[var(--accent)] text-white' : 'border border-[var(--border)] text-[var(--fg-muted)]'
                       }`}>{a}</button>

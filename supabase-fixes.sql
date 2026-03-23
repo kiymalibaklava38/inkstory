@@ -79,3 +79,10 @@ SELECT table_name FROM information_schema.tables
 WHERE table_schema = 'public'
   AND table_name IN ('audit_log', 'ai_usage_logs')
 ORDER BY table_name;
+
+-- ── engagement_logs public read policy ───────────────────
+-- Trending API'nin giriş yapmamış kullanıcılara da çalışması için
+DROP POLICY IF EXISTS "engagement_logs_public_read" ON public.engagement_logs;
+CREATE POLICY "engagement_logs_public_read"
+  ON public.engagement_logs FOR SELECT
+  USING (true);
