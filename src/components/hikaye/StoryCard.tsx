@@ -40,15 +40,15 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
             </div>
           )}
 
-          {/* Category badge - bottom left */}
+          {/* Category badge - top left */}
           {cat && catName && (
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-medium backdrop-blur-md"
+            <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-xs font-medium backdrop-blur-md"
               style={{ backgroundColor: `${cat.renk}cc` }}>
               <span>{cat.ikon}</span>{catName}
             </div>
           )}
 
-          {/* Featured badge */}
+          {/* Featured badge - top right */}
           {story.is_featured && (
             <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-white text-xs font-bold backdrop-blur-sm flex items-center gap-1"
               style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
@@ -56,9 +56,9 @@ export function StoryCard({ story, featured = false, lang = 'en' }: Props) {
             </div>
           )}
 
-          {/* Status badge — only show if not featured */}
+          {/* Status badge — bottom right, doesn't overlap anything */}
           {!story.is_featured && story.durum === 'tamamlandi' && (
-            <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-emerald-500/90 text-white text-xs font-medium backdrop-blur-sm">
+            <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-emerald-500/90 text-white text-xs font-medium backdrop-blur-sm">
               {lang === 'tr' ? '✓ Tamamlandı' : '✓ Complete'}
             </div>
           )}
