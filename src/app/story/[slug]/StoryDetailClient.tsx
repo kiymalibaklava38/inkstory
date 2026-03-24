@@ -5,13 +5,14 @@ import { LikeButton } from '@/components/hikaye/LikeButton'
 import { LibraryButton } from '@/components/hikaye/LibraryButton'
 import { FollowButton } from '@/components/profil/FollowButton'
 import { CommentsSection } from '@/components/hikaye/CommentsSection'
-import { Eye, BookOpen, Clock, Calendar, Tag, ChevronRight } from 'lucide-react'
+import { Eye, BookOpen, Clock, Calendar, Tag, ChevronRight, Share2, Check } from 'lucide-react'
 import { useLang } from '@/lib/i18n'
 import { getCategoryName } from '@/lib/categories'
 import { format } from 'date-fns'
 import { tr as dateFnsTr, enUS } from 'date-fns/locale'
 import { ContinueReading } from '@/components/hikaye/ContinueReading'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
+import { useState } from 'react'
 
 interface Props {
   story: any
@@ -29,18 +30,63 @@ export function StoryDetailClient({
   const { t, lang } = useLang()
   const locale = lang === 'tr' ? dateFnsTr : enUS
   const cat = story.kategoriler
+  const [copied, setCopied] = useState(false)
 
   const catName = cat ? getCategoryName(cat.slug, lang) : null
 
   const totalWords = chapters.reduce((a: number, c: any) => a + (c.kelime_sayisi || 0), 0)
   const readMins   = Math.ceil(totalWords / 200)
 
+  const shareUrl = `https://inkstory.com.tr/story/${story.slug}`
+  const shareText = lang === 'tr'
+    ? `"${story.baslik}" hikayesini InkStory'de oku!`
+    : `Read "${story.baslik}" on InkStory!`
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try { await navigator.share({ title: story.baslik, text: shareText, url: shareUrl }) }
+      catch {}
+    } else {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const statusLabel = story.durum === 'tamamlandi'
     ? (lang === 'tr' ? '✓ Tamamlandı' : '✓ Complete')
     : (lang === 'tr' ? '📝 Devam Ediyor' : '📝 Ongoing')
 
+  const author = story.profiles?.display_name || story.profiles?.username
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: story.baslik,
+    description: story.aciklama || `${author} tarafından yazılmış bir hikaye.`,
+    author: {
+      '@type': 'Person',
+      name: author,
+      url: `https://inkstory.com.tr/profile/${story.profiles?.username}`,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'InkStory',
+      url: 'https://inkstory.com.tr',
+    },
+    url: `https://inkstory.com.tr/story/${story.slug}`,
+    datePublished: story.created_at,
+    dateModified: story.updated_at || story.created_at,
+    image: story.kapak_url || 'https://inkstory.com.tr/og-default.png',
+    inLanguage: 'tr',
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
 
         {/* Left: cover + actions */}
@@ -73,6 +119,15 @@ export function StoryDetailClient({
             <div className="flex gap-2 mb-5">
               <LikeButton storyId={story.id} initialCount={likeCount} initialLiked={userLiked} hasUser={!!userId} />
               <LibraryButton storyId={story.id} initialSaved={userSaved} hasUser={!!userId} />
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)] hover:border-[var(--accent)]/50 transition-all"
+              >
+                {copied
+                  ? <><Check style={{ width: 13, height: 13 }} className="text-emerald-400" /> {lang === 'tr' ? 'Kopyalandı!' : 'Copied!'}</>
+                  : <><Share2 style={{ width: 13, height: 13 }} /> {lang === 'tr' ? 'Paylaş' : 'Share'}</>
+                }
+              </button>
             </div>
 
             {/* Meta */}

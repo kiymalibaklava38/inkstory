@@ -8,7 +8,7 @@ export function DynamicTitle() {
 
   useEffect(() => {
     const title = lang === 'tr'
-      ? 'InkStory – Dünyanı Yaz'
+      ? 'InkStory – Hikayeni Yaz, Dünyayla Paylaş'
       : 'InkStory – Write Your World'
     document.title = title
   }, [lang])

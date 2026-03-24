@@ -12,7 +12,7 @@ export default function TermsPage() {
           { title: '5. Termination', body: 'Accounts violating these terms may be suspended or deleted without prior notice. You may appeal via our contact address.' },
           { title: '6. Disclaimer', body: 'InkStory is not responsible for user-generated content. The platform is provided "as is" without guarantee of uninterrupted service.' },
           { title: '7. Changes', body: 'These terms may be updated periodically. Significant changes will be communicated to your registered email.' },
-          { title: '8. Contact', body: 'For questions: support@inkstory.com' },
+          { title: '8. Contact', body: 'For questions: support@inkstory.com.tr' },
         ].map(({ title, body }) => (
           <div key={title}>
             <h2 className="font-display text-xl font-bold text-[var(--fg)] mb-2">{title}</h2>

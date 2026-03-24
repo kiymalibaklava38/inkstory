@@ -3,8 +3,47 @@ import { createClient } from '@/lib/supabase/server'
 import { StoryDetailClient } from './StoryDetailClient'
 import { headers } from 'next/headers'
 import { createHash } from 'crypto'
+import type { Metadata } from 'next'
 
 interface Props { params: { slug: string } }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const supabase = await createClient()
+  const { data: story } = await supabase
+    .from('hikayeler')
+    .select('baslik, aciklama, kapak_url, profiles(username, display_name), kategoriler(ad)')
+    .eq('slug', params.slug)
+    .single()
+
+  if (!story) return { title: 'Hikaye Bulunamadı' }
+
+  const author = (story.profiles as any)?.display_name || (story.profiles as any)?.username
+  const title  = `${story.baslik} — ${author} | InkStory`
+  const desc   = story.aciklama
+    ? story.aciklama.slice(0, 160)
+    : `${author} tarafından yazılmış bir hikaye. InkStory'de oku.`
+
+  return {
+    title,
+    description: desc,
+    openGraph: {
+      title,
+      description: desc,
+      type: 'article',
+      url: `https://inkstory.com.tr/story/${params.slug}`,
+      siteName: 'InkStory',
+      images: story.kapak_url
+        ? [{ url: story.kapak_url, width: 800, height: 400, alt: story.baslik }]
+        : [{ url: '/og-default.png', width: 1200, height: 630, alt: 'InkStory' }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: desc,
+      images: story.kapak_url ? [story.kapak_url] : ['/og-default.png'],
+    },
+  }
+}
 
 export default async function StoryPage({ params }: Props) {
   const supabase = await createClient()

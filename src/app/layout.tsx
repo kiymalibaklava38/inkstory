@@ -9,19 +9,33 @@ import { OnboardingGate } from '@/components/personalization/OnboardingGate'
 import { DynamicTitle } from '@/components/layout/DynamicTitle'
 
 export const metadata: Metadata = {
-  title: { default: 'InkStory – Write Your World', template: '%s | InkStory' },
-  description: 'The global story writing and reading platform. Write, read, and share stories with AI-powered tools.',
-  keywords: ['story', 'writing', 'fiction', 'novel', 'inkstory', 'AI writing', 'hikaye', 'roman'],
+  title: { default: 'InkStory – Hikayeni Yaz, Dünyayla Paylaş', template: '%s | InkStory' },
+  description: 'Türkiye\'nin hikaye yazma ve okuma platformu. Yaz, oku ve AI destekli araçlarla hikayelerini paylaş.',
+  keywords: ['hikaye', 'roman', 'yazarlık', 'okuma', 'inkstory', 'AI yazma', 'story', 'fiction'],
+  metadataBase: new URL('https://inkstory.com.tr'),
   icons: {
-    icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-    ],
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
     apple: '/favicon.svg',
   },
   openGraph: {
-    title: 'InkStory',
-    description: 'Write your world. Share your story.',
+    title: 'InkStory – Hikayeni Yaz, Dünyayla Paylaş',
+    description: 'Türkiye\'nin hikaye yazma ve okuma platformu. AI destekli araçlarla yaz, oku, keşfet.',
     type: 'website',
+    url: 'https://inkstory.com.tr',
+    siteName: 'InkStory',
+    images: [{
+      url: '/og-default.png',
+      width: 1200,
+      height: 630,
+      alt: 'InkStory',
+    }],
+    locale: 'tr_TR',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'InkStory – Hikayeni Yaz',
+    description: 'Türkiye\'nin hikaye yazma ve okuma platformu.',
+    images: ['/og-default.png'],
   },
 }
 

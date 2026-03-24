@@ -1,5 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
 import { HomeClient } from './HomeClient'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'InkStory — Hikayeni Yaz, Dünyayla Paylaş',
+  description: 'Türkiye\'nin hikaye yazma ve okuma platformu. AI destekli araçlarla yaz, oku, keşfet.',
+  alternates: { canonical: 'https://inkstory.com.tr' },
+}
+
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'InkStory',
+  url: 'https://inkstory.com.tr',
+  description: 'Türkiye\'nin hikaye yazma ve okuma platformu.',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: 'https://inkstory.com.tr/search?q={search_term_string}',
+    'query-input': 'required name=search_term_string',
+  },
+}
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -36,14 +56,20 @@ export default async function HomePage() {
   const totalReads = (topStories || []).reduce((a: number, h: any) => a + (h.goruntuleme || 0), 0)
 
   return (
-    <HomeClient
-      storyCount={storyCount || 0}
-      writerCount={writerCount || 0}
-      totalReads={totalReads}
-      topStories={topStories || []}
-      newStories={newStories || []}
-      categories={categories || []}
-      featuredStories={featuredStories || []}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
+      <HomeClient
+        storyCount={storyCount || 0}
+        writerCount={writerCount || 0}
+        totalReads={totalReads}
+        topStories={topStories || []}
+        newStories={newStories || []}
+        categories={categories || []}
+        featuredStories={featuredStories || []}
+      />
+    </>
   )
 }

@@ -1,8 +1,38 @@
 import { createClient } from '@/lib/supabase/server'
 import { StoriesClient } from './StoriesClient'
+import type { Metadata } from 'next'
 
 interface Props {
   searchParams: { category?: string; sort?: string; page?: string }
+}
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const supabase = await createClient()
+  const { category } = searchParams
+
+  if (category) {
+    const { data: cat } = await supabase.from('kategoriler').select('ad, ikon').eq('slug', category).single()
+    if (cat) {
+      const title = `${cat.ikon} ${cat.ad} Hikayeleri — InkStory`
+      const desc  = `InkStory'de en iyi ${cat.ad} hikayelerini oku ve keşfet.`
+      return {
+        title,
+        description: desc,
+        openGraph: { title, description: desc, url: `https://inkstory.com.tr/stories?category=${category}`, siteName: 'InkStory' },
+      }
+    }
+  }
+
+  return {
+    title: 'Hikayeler — InkStory',
+    description: 'InkStory\'de binlerce hikaye seni bekliyor. Romantik, fantastik, gerilim ve daha fazlası.',
+    openGraph: {
+      title: 'Hikayeler — InkStory',
+      description: 'InkStory\'de binlerce hikaye seni bekliyor.',
+      url: 'https://inkstory.com.tr/stories',
+      siteName: 'InkStory',
+    },
+  }
 }
 
 export default async function StoriesPage({ searchParams }: Props) {
