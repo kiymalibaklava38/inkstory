@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 import { tr as dateFnsTr, enUS } from 'date-fns/locale'
 import { ContinueReading } from '@/components/hikaye/ContinueReading'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
+import { SubscribeButton } from '@/components/hikaye/SubscribeButton'
 import { useState } from 'react'
 
 interface Props {
@@ -116,9 +117,10 @@ export function StoryDetailClient({
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-2 mb-5">
+            <div className="flex gap-2 mb-5 flex-wrap">
               <LikeButton storyId={story.id} initialCount={likeCount} initialLiked={userLiked} hasUser={!!userId} />
               <LibraryButton storyId={story.id} initialSaved={userSaved} hasUser={!!userId} />
+              <SubscribeButton hikayeId={story.id} hasUser={!!userId} />
               <button
                 onClick={handleShare}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-medium text-[var(--fg-muted)] hover:text-[var(--fg)] hover:border-[var(--accent)]/50 transition-all"

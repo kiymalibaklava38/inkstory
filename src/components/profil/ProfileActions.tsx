@@ -34,6 +34,12 @@ export function ProfileActions({ profileId, username, isMyProfile, isFollowing: 
     } else {
       await supabase.from('takip').insert({ takipci_id: user.id, takip_edilen_id: profileId })
       setFollowing(true)
+      // E-posta bildirimi gönder (non-blocking)
+      fetch('/api/notify/follower', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: profileId }),
+      }).catch(() => {})
     }
     setBusy(false)
   }

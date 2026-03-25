@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react' // Suspense eklendi
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -12,8 +12,8 @@ import { useLang } from '@/lib/i18n'
 import { Save, ArrowLeft, Loader2, PanelRightOpen, PanelRightClose, FileUp } from 'lucide-react'
 import Link from 'next/link'
 
-// 1. Tüm sayfa mantığını içeren iç bileşen
-function NewChapterContent() {
+// 1. ASIL EDİTÖR BİLEŞENİ
+function ChapterEditor() {
   const [storyTitle, setStoryTitle] = useState('')
   const [storySlug, setStorySlug] = useState('')
   const [title, setTitle] = useState('')
@@ -34,7 +34,9 @@ function NewChapterContent() {
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: lang === 'tr' ? 'Bölümün burada başlıyor...' : 'Your chapter begins here...' }),
+      Placeholder.configure({ 
+        placeholder: lang === 'tr' ? 'Bölümün burada başlıyor...' : 'Your chapter begins here...' 
+      }),
     ],
     editorProps: { attributes: { class: 'ProseMirror' } },
     onUpdate: ({ editor }) => setWordCount(editor.getText().split(/\s+/).filter(Boolean).length),
@@ -45,14 +47,21 @@ function NewChapterContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       if (!storyId) { router.push('/dashboard'); return }
-      const { data } = await supabase.from('hikayeler').select('baslik,slug,yazar_id').eq('id', storyId).single()
+      
+      const { data } = await supabase
+        .from('hikayeler')
+        .select('baslik,slug,yazar_id')
+        .eq('id', storyId)
+        .single()
+        
       if (!data || data.yazar_id !== user.id) { router.push('/dashboard'); return }
+      
       setStoryTitle(data.baslik)
       setStorySlug(data.slug)
       setLoading(false)
     }
     init()
-  }, [storyId])
+  }, [storyId, supabase, router])
 
   const handleAIAccept = useCallback((text: string) => {
     editor?.chain().focus().insertContent('\n\n' + text).run()
@@ -62,16 +71,43 @@ function NewChapterContent() {
     if (!title.trim() || saving) return
     setSaving(true)
     setError('')
+    
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    
     const content = editor?.getHTML() || ''
     const wc = editor?.getText().split(/\s+/).filter(Boolean).length || 0
-    const { data: last } = await supabase.from('bolumler').select('bolum_no').eq('hikaye_id', storyId!).order('bolum_no', { ascending: false }).limit(1).single()
-    const { error: err } = await supabase.from('bolumler').insert({
-      hikaye_id: storyId!, yazar_id: user.id, baslik: title,
-      icerik: content, bolum_no: (last?.bolum_no || 0) + 1, kelime_sayisi: wc, yayinda: publish,
-    })
+    
+    const { data: last } = await supabase
+      .from('bolumler')
+      .select('bolum_no')
+      .eq('hikaye_id', storyId!)
+      .order('bolum_no', { ascending: false })
+      .limit(1)
+      .single()
+      
+    const bolumNo = (last?.bolum_no || 0) + 1
+    
+    const { data: newBolum, error: err } = await supabase.from('bolumler').insert({
+      hikaye_id: storyId!, 
+      yazar_id: user.id, 
+      baslik: title,
+      icerik: content, 
+      bolum_no: bolumNo, 
+      kelime_sayisi: wc, 
+      yayinda: publish,
+    }).select('id').single()
+    
     if (err) { setError(err.message); setSaving(false); return }
+
+    if (publish && newBolum?.id) {
+      fetch('/api/notify/chapter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hikayeId: storyId, bolumId: newBolum.id, bolumNo, bolumBaslik: title }),
+      }).catch(() => {})
+    }
+
     router.push(`/story/${storySlug}`)
   }
 
@@ -83,7 +119,6 @@ function NewChapterContent() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      {/* Sticky toolbar */}
       <div className="sticky top-16 z-40 border-b border-[var(--border)] bg-[var(--bg)]/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -101,7 +136,9 @@ function NewChapterContent() {
             <button
               onClick={() => setShowDocxImporter(v => !v)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
-                showDocxImporter ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10' : 'border-[var(--border)]'
+                showDocxImporter
+                  ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10'
+                  : 'border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)] hover:border-[var(--accent)]/40'
               }`}
             >
               <FileUp style={{ width: 12, height: 12 }} />
@@ -110,7 +147,7 @@ function NewChapterContent() {
 
             <button
               onClick={() => setShowAI(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs text-[var(--fg-muted)]"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--border)] text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] transition-all"
             >
               {showAI ? <PanelRightClose style={{ width: 13, height: 13 }} /> : <PanelRightOpen style={{ width: 13, height: 13 }} />}
               {t.aiPanel}
@@ -119,7 +156,7 @@ function NewChapterContent() {
             <button
               onClick={save}
               disabled={saving || !title.trim()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white hover:scale-105 transition-all disabled:opacity-50"
               style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}
             >
               {saving ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <Save style={{ width: 14, height: 14 }} />}
@@ -137,25 +174,77 @@ function NewChapterContent() {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder={lang === 'tr' ? 'Bölüm başlığı...' : 'Chapter title...'}
-              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-2xl px-6 py-4 text-xl font-display font-semibold transition-colors"
+              className="w-full bg-[var(--card)] border border-[var(--border)] rounded-2xl px-6 py-4 text-xl font-display font-semibold text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] mb-4 transition-colors"
             />
+
             {showDocxImporter && (
               <div className="mb-4 p-4 bg-[var(--card)] border border-[var(--accent)]/30 rounded-2xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-[var(--fg)]">
+                    📄 {lang === 'tr' ? 'Word Dosyasını İçe Aktar' : 'Import Word File'}
+                  </p>
+                  <button
+                    onClick={() => setShowDocxImporter(false)}
+                    className="text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] px-2 py-1 rounded-lg hover:bg-[var(--bg-subtle)] transition-all"
+                  >
+                    ✕ {lang === 'tr' ? 'Kapat' : 'Close'}
+                  </button>
+                </div>
                 <DocxImporter onImport={(html) => {
-                  if (editor) { editor.commands.setContent(html); editor.commands.focus(); }
+                  if (editor) {
+                    editor.commands.setContent(html)
+                    editor.commands.focus()
+                  }
                   setShowDocxImporter(false)
                 }} />
               </div>
             )}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden min-h-[500px]">
-              <EditorContent editor={editor} />
+
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)] bg-[var(--bg-subtle)]">
+                <div className="flex items-center gap-1">
+                  {[
+                    { label: 'B', action: () => editor?.chain().focus().toggleBold().run(), active: editor?.isActive('bold') },
+                    { label: 'I', action: () => editor?.chain().focus().toggleItalic().run(), active: editor?.isActive('italic') },
+                    { label: 'H2', action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: editor?.isActive('heading', { level: 2 }) },
+                    { label: '—', action: () => editor?.chain().focus().setHorizontalRule().run(), active: false },
+                  ].map(btn => (
+                    <button key={btn.label}
+                      onClick={btn.action}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${btn.active ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)]'}`}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ml-auto flex items-center gap-3 text-xs text-[var(--fg-muted)]">
+                  <span className="font-mono">{wordCount} {t.words}</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={publish} onChange={e => setPublish(e.target.checked)} className="w-3.5 h-3.5 accent-[var(--accent)]" />
+                    {t.publishNow}
+                  </label>
+                </div>
+              </div>
+              <div className="min-h-[500px]">
+                <EditorContent editor={editor} />
+              </div>
             </div>
+
+            {error && (
+              <div className="mt-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
           </div>
 
           {showAI && (
             <div className="lg:col-span-1">
               <div className="sticky top-32">
-                <AiWritingPanel currentText={editor?.getText() || ''} onAccept={handleAIAccept} storyTitle={storyTitle} />
+                <AiWritingPanel
+                  currentText={editor?.getText() || ''}
+                  onAccept={handleAIAccept}
+                  storyTitle={storyTitle}
+                />
               </div>
             </div>
           )}
@@ -165,15 +254,15 @@ function NewChapterContent() {
   )
 }
 
-// 2. Ana export fonksiyonu Suspense sarmalıyla
+// 2. EXPORT EDİLEN ANA SAYFA (SUSPENSE SINIRI)
 export default function NewChapterPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-        <Loader2 className="animate-spin text-[var(--accent)]" size={40} />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 style={{ width: 28, height: 28 }} className="animate-spin text-[var(--accent)]" />
       </div>
     }>
-      <NewChapterContent />
+      <ChapterEditor />
     </Suspense>
   )
 }

@@ -10,30 +10,24 @@ export async function POST(req: NextRequest) {
   const limited = await checkRateLimit(req, commentLimiter)
   if (limited) return limited
 
-  // Auth - 'user' kontrolünü ekledik
+  // Auth
   const { user, error: authError } = await requireAuth()
-  if (authError || !user) return authError || NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (authError) return authError
 
   // Parse & validate
   let body: unknown
-  try { 
-    body = await req.json() 
-  } catch { 
-    return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }) 
-  }
+  try { body = await req.json() }
+  catch { return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 }) }
 
-  // Veri doğrulama ve null kontrolü
   const { data, error: validErr } = parseOrError(CommentSchema, body)
-  if (validErr || !data) {
-    return NextResponse.json({ error: validErr || 'Veri bulunamadı' }, { status: 400 })
-  }
+  if (validErr || !data) return NextResponse.json({ error: validErr || 'Invalid data.' }, { status: 400 })
 
-  // DİKKAT: Burada sadece BİR KEZ tanımlama yapıyoruz
+  // Sanitize comment text — strip any HTML tags, plain text only
   const safeContent = escapeHtml(data.content)
 
   const supabase = await createClient()
 
-  // Hikaye kontrolü
+  // Verify the story exists and is published (prevent commenting on private stories)
   const { data: story } = await supabase
     .from('hikayeler')
     .select('id, durum')
@@ -45,7 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Story not found.' }, { status: 404 })
   }
 
-  // Yanıt ise üst yorum kontrolü
+  // If reply, verify parent comment belongs to the same story
   if (data.parentId) {
     const { data: parent } = await supabase
       .from('yorumlar')
@@ -59,13 +53,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Veritabanına ekleme
   const { data: comment, error } = await supabase
     .from('yorumlar')
     .insert({
       hikaye_id:    data.storyId,
       bolum_id:     data.chapterId ?? null,
-      yazar_id:     user.id, // user artık kesinlikle var
+      yazar_id:     user.id,
       icerik:       safeContent,
       ust_yorum_id: data.parentId ?? null,
     })
@@ -75,6 +68,17 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('[Comments] Insert error:', error.message)
     return NextResponse.json({ error: 'Failed to post comment.' }, { status: 500 })
+  }
+
+  // E-posta bildirimi gönder (non-blocking)
+  if (comment?.id) {
+    const host = req.headers.get('host') || 'localhost:3000'
+    const protocol = host.includes('localhost') ? 'http' : 'https'
+    fetch(`${protocol}://${host}/api/notify/comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commentId: comment.id }),
+    }).catch(() => {})
   }
 
   return NextResponse.json({ comment }, { status: 201 })
