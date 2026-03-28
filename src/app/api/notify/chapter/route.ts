@@ -22,36 +22,54 @@ export async function POST(req: NextRequest) {
 
   if (!hikaye) return NextResponse.json({ error: 'Story not found' }, { status: 404 })
 
-  // Bu hikayeye abone olan kullanıcıları çek
+  // Aboneleri çek
   const { data: aboneler } = await supabase
     .from('hikaye_abonelikleri')
-    .select('user_id, profiles(email, display_name, username, email_new_chapter)')
+    .select('user_id')
     .eq('hikaye_id', hikayeId)
 
   if (!aboneler || aboneler.length === 0) return NextResponse.json({ sent: 0 })
 
   const authorName = (hikaye.profiles as any)?.display_name || (hikaye.profiles as any)?.username
 
+  // Supabase Admin ile auth.users'dan email çek
+  const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
   let sent = 0
   for (const abone of aboneler) {
-    const profile = abone.profiles as any
-    if (!profile?.email || profile?.email_new_chapter === false) continue
-    if (abone.user_id === user.id) continue // Yazara kendine mail atma
+    if (abone.user_id === user.id) continue
 
-    // Spam kontrolü: son 1 saatte bu hikaye için mail gönderilmiş mi?
+    // Spam kontrolü
     const { count } = await supabase
       .from('email_logs')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', abone.user_id)
       .eq('type', 'new_chapter')
       .eq('ref_id', bolumId)
-
     if ((count || 0) > 0) continue
+
+    // Profil bilgisi ve bildirim tercihi
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, username, email_new_chapter')
+      .eq('id', abone.user_id)
+      .single()
+
+    if (profile?.email_new_chapter === false) continue
+
+    // Email'i auth.users'dan çek
+    const { data: authUser } = await adminClient.auth.admin.getUserById(abone.user_id)
+    const email = authUser?.user?.email
+    if (!email) continue
 
     try {
       await sendNewChapterEmail({
-        toEmail:      profile.email,
-        toName:       profile.display_name || profile.username,
+        toEmail:      email,
+        toName:       profile?.display_name || profile?.username || 'Okuyucu',
         authorName,
         storyTitle:   hikaye.baslik,
         storySlug:    hikaye.slug,
@@ -66,7 +84,7 @@ export async function POST(req: NextRequest) {
       })
       sent++
     } catch (e) {
-      console.error('[Email] Failed to send chapter notification:', e)
+      console.error('[Email] Chapter notification failed:', e)
     }
   }
 

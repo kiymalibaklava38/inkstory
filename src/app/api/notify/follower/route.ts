@@ -12,15 +12,14 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
 
-  // Hedef kullanıcı ve bildirim tercihi
+  // Hedef kullanıcının bildirim tercihi
   const { data: target } = await supabase
     .from('profiles')
-    .select('email, display_name, username, email_new_follower')
+    .select('display_name, username, email_new_follower')
     .eq('id', targetUserId)
     .single()
 
-  if (!target?.email || target.email_new_follower === false)
-    return NextResponse.json({ sent: false })
+  if (target?.email_new_follower === false) return NextResponse.json({ sent: false })
 
   // Spam: son 24 saatte bu takip için mail gitti mi?
   const { count } = await supabase
@@ -33,6 +32,17 @@ export async function POST(req: NextRequest) {
 
   if ((count || 0) > 0) return NextResponse.json({ sent: false })
 
+  // Admin client ile email çek
+  const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  const { data: authUser } = await adminClient.auth.admin.getUserById(targetUserId)
+  const email = authUser?.user?.email
+  if (!email) return NextResponse.json({ sent: false })
+
   // Takip eden kullanıcı bilgisi
   const { data: follower } = await supabase
     .from('profiles')
@@ -44,8 +54,8 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendNewFollowerEmail({
-      toEmail:          target.email,
-      toName:           target.display_name || target.username,
+      toEmail:          email,
+      toName:           target?.display_name || target?.username || 'Yazar',
       followerName:     follower.display_name || follower.username,
       followerUsername: follower.username,
     })

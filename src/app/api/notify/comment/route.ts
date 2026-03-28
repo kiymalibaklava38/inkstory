@@ -8,10 +8,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
 
-  // Yorumu ve hikayeyi çek
+  // Yorumu çek
   const { data: comment } = await supabase
     .from('yorumlar')
-    .select('id, icerik, yazar_id, hikayeler(id, baslik, slug, yazar_id, profiles(email, display_name, username, email_new_comment))')
+    .select('id, icerik, yazar_id, hikayeler(id, baslik, slug, yazar_id, profiles(display_name, username, email_new_comment))')
     .eq('id', commentId)
     .single()
 
@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
 
   // Kendi hikayesine yorum yapmışsa bildirim atma
   if (comment.yazar_id === hikaye?.yazar_id) return NextResponse.json({ sent: false })
-  if (!yazarPr?.email || yazarPr?.email_new_comment === false) return NextResponse.json({ sent: false })
+  if (yazarPr?.email_new_comment === false) return NextResponse.json({ sent: false })
 
-  // Spam: bu yorum için mail gitti mi?
+  // Spam kontrolü
   const { count } = await supabase
     .from('email_logs')
     .select('id', { count: 'exact', head: true })
@@ -33,6 +33,17 @@ export async function POST(req: NextRequest) {
     .eq('ref_id', commentId)
 
   if ((count || 0) > 0) return NextResponse.json({ sent: false })
+
+  // Admin client ile yazar emailini çek
+  const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  const { data: authUser } = await adminClient.auth.admin.getUserById(hikaye.yazar_id)
+  const email = authUser?.user?.email
+  if (!email) return NextResponse.json({ sent: false })
 
   // Yorum yapanın adı
   const { data: commenter } = await supabase
@@ -43,8 +54,8 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendNewCommentEmail({
-      toEmail:        yazarPr.email,
-      toName:         yazarPr.display_name || yazarPr.username,
+      toEmail:        email,
+      toName:         yazarPr?.display_name || yazarPr?.username || 'Yazar',
       commenterName:  commenter?.display_name || commenter?.username || 'Biri',
       storyTitle:     hikaye.baslik,
       storySlug:      hikaye.slug,
