@@ -34,13 +34,13 @@ export default function NotificationsPage() {
 
   const buildCommentText = (displayName: string, snippet: string) =>
     lang === 'tr'
-      ? `<strong>${displayName}</strong> yorum yaptı: "${snippet}"`
-      : `<strong>${displayName}</strong> commented: "${snippet}"`
+      ? `<strong>${displayName}</strong> Yorum Yaptı: "${snippet}"`
+      : `<strong>${displayName}</strong> Commented: "${snippet}"`
 
   const buildFollowText = (displayName: string) =>
     lang === 'tr'
-      ? `<strong>${displayName}</strong> seni takip etmeye başladı`
-      : `<strong>${displayName}</strong> started following you`
+      ? `<strong>${displayName}</strong> Seni takip etmeye başladı`
+      : `<strong>${displayName}</strong> Started following you`
 
   useEffect(() => {
     const init = async () => {
