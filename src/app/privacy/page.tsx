@@ -102,7 +102,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-display text-xl font-bold text-[var(--fg)] mb-3">11. İletişim</h2>
           <ul className="space-y-1 list-disc list-inside">
-            <li>E-posta: <a href="mailto:privacy@inkstory.com.tr" className="text-[var(--accent)] hover:underline">privacy@inkstory.com.tr</a></li>
+            <li>E-posta: <a href="mailto:contact@inkstory.com.tr" className="text-[var(--accent)] hover:underline">coontact@inkstory.com.tr</a></li>
             <li>Web: <a href="https://inkstory.com.tr" className="text-[var(--accent)] hover:underline">inkstory.com.tr</a></li>
           </ul>
         </section>
