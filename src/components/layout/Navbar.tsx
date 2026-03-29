@@ -139,7 +139,7 @@ export function Navbar() {
             {user ? (
               <>
                 <Link href="/premium" className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-all">
-              <Crown style={{width:10,height:10}}/>{lang === 'tr' ? 'YAKINDA' : 'SOON'} ⭐
+              <Crown style={{width:10,height:10}}/> Premium ⭐
             </Link>
             <Link href="/write" className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white hover:scale-105 transition-all ml-1" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>
                   <PenLine style={{width:14,height:14}}/>{t.write}
