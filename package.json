@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@paddle/paddle-js": "^1.6.2",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.0",
     "@tiptap/extension-character-count": "^2.5.0",
