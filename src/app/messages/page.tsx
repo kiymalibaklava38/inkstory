@@ -85,11 +85,20 @@ export default function MessagesPage() {
   // ── Load messages + mark read ───────────────────────────
   const loadMessages = useCallback(async (convId: string) => {
     setLoadingMsgs(true)
+
+    // Okundu işaretle — hemen, beklemeden
+    fetch('/api/dm/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId: convId }),
+    }).catch(() => {})
+
     const res  = await fetch(`/api/dm/messages?conversationId=${convId}`)
     const data = await res.json()
     setMessages(data.messages || [])
     setLoadingMsgs(false)
-    // API zaten okundu işaretliyor, UI'ı da güncelle
+
+    // Sidebar unread sıfırla
     setConvos(prev => prev.map(c => c.id === convId ? { ...c, unread: 0 } : c))
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }, [])
@@ -113,19 +122,24 @@ export default function MessagesPage() {
 
         const currentActive = activeRef.current
 
-        // Aktif konuşmaya mesaj geldiyse: anlık ekle + API'a okundu bildir
+        // Aktif konuşmaya mesaj geldiyse: anlık ekle + anında okundu işaretle
         if (currentActive && msg.konusma_id === currentActive.id) {
           const { data: prof } = await supabase.from('profiles')
             .select('id, username, display_name, avatar_url').eq('id', msg.gonderen_id).single()
           setMessages(prev => {
-            // Duplicate guard
             if (prev.some(m => m.id === msg.id)) return prev
             return [...prev, { ...msg, profiles: prof }]
           })
           setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80)
-          // Okundu işaretle (API üzerinden)
-          fetch(`/api/dm/messages?conversationId=${currentActive.id}`, { method: 'GET' }).catch(() => {})
-          // Sidebar'daki unread'i sıfırla
+
+          // Anında okundu işaretle
+          fetch('/api/dm/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: currentActive.id }),
+          }).catch(() => {})
+
+          // Sidebar unread sıfırla
           setConvos(prev => prev.map(c => c.id === msg.konusma_id
             ? { ...c, unread: 0, lastMsg: { icerik: msg.icerik, gonderen_id: msg.gonderen_id, silinmis: false }, son_mesaj_at: msg.created_at }
             : c
