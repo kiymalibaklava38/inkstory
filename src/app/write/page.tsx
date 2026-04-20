@@ -13,6 +13,7 @@ import { Save, ArrowLeft, Loader2, ChevronRight, PanelRightOpen, PanelRightClose
 import Link from 'next/link'
 import slugify from 'slugify'
 import { ALL_CATEGORIES } from '@/lib/categories'
+import { validateImageClient } from '@/lib/upload-security'
 
 type Step = 'meta' | 'write'
 
@@ -226,10 +227,11 @@ export default function WritePage() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                onChange={e => {
+                onChange={async e => {
                   const f = e.target.files?.[0]
                   if (!f) return
-                  if (f.size > 5 * 1024 * 1024) { alert(lang === 'tr' ? 'Maksimum 5MB' : 'Max 5MB'); return }
+                  const result = await validateImageClient(f, 'cover')
+                  if (!result.ok) { alert(result.error); return }
                   setCoverFile(f)
                   setCoverPreview(URL.createObjectURL(f))
                 }}

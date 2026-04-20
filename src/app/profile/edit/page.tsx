@@ -8,9 +8,15 @@ import { Save, ArrowLeft, Camera, Loader2, Heart, ImagePlus } from 'lucide-react
 import Link from 'next/link'
 import { InterestPicker } from '@/components/personalization/InterestPicker'
 import { getCategoryBySlug } from '@/lib/categories'
+import { validateImageClient } from '@/lib/upload-security'
 
 export default function EditProfilePage() {
   const [form, setForm] = useState({ display_name: '', username: '', bio: '', website: '' })
+  const [emailPrefs, setEmailPrefs] = useState({
+    email_new_chapter:  true,
+    email_new_follower: true,
+    email_new_comment:  true,
+  })
   const [avatarFile, setAvatarFile]   = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [currentAvatar, setCurrentAvatar] = useState<string | null>(null)
@@ -44,6 +50,11 @@ export default function EditProfilePage() {
         setOriginalUsername(data.username)
         setCurrentAvatar(data.avatar_url)
         setCurrentBanner(data.banner_url || null)
+        setEmailPrefs({
+          email_new_chapter:  data.email_new_chapter  !== false,
+          email_new_follower: data.email_new_follower !== false,
+          email_new_comment:  data.email_new_comment  !== false,
+        })
       }
 
       // Load preferences
@@ -58,10 +69,11 @@ export default function EditProfilePage() {
     init()
   }, [])
 
-  const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
-    if (f.size > 2 * 1024 * 1024) { setError('Avatar must be under 2MB'); return }
+    const result = await validateImageClient(f, 'avatar')
+    if (!result.ok) { setError(result.error); return }
     setAvatarFile(f)
     setAvatarPreview(URL.createObjectURL(f))
   }
@@ -109,13 +121,16 @@ export default function EditProfilePage() {
     }
 
     const { error: updateErr } = await supabase.from('profiles').update({
-      display_name: form.display_name || null,
-      username:     form.username,
-      bio:          form.bio || null,
-      website:      form.website || null,
-      avatar_url:   avatarUrl,
-      banner_url:   bannerUrl,
-      updated_at:   new Date().toISOString(),
+      display_name:       form.display_name || null,
+      username:           form.username,
+      bio:                form.bio || null,
+      website:            form.website || null,
+      avatar_url:         avatarUrl,
+      banner_url:         bannerUrl,
+      email_new_chapter:  emailPrefs.email_new_chapter,
+      email_new_follower: emailPrefs.email_new_follower,
+      email_new_comment:  emailPrefs.email_new_comment,
+      updated_at:         new Date().toISOString(),
     }).eq('id', user.id)
 
     if (updateErr) { setError('Update failed: ' + updateErr.message); setSaving(false); return }
@@ -191,10 +206,11 @@ export default function EditProfilePage() {
             type="file"
             accept="image/jpeg,image/png,image/webp"
             className="hidden"
-            onChange={e => {
+            onChange={async e => {
               const f = e.target.files?.[0]
               if (!f) return
-              if (f.size > 5 * 1024 * 1024) { setError(lang === 'tr' ? 'Maksimum 5MB' : 'Max 5MB'); return }
+              const result = await validateImageClient(f, 'banner')
+              if (!result.ok) { setError(result.error); return }
               setBannerFile(f)
               setBannerPreview(URL.createObjectURL(f))
             }}
@@ -269,6 +285,30 @@ export default function EditProfilePage() {
         {success && (
           <div className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">{t.profileUpdated}</div>
         )}
+
+        {/* E-posta Bildirimleri */}
+        <div className="bg-[var(--bg-subtle)] rounded-xl p-4 border border-[var(--border)]">
+          <p className="text-sm font-semibold text-[var(--fg)] mb-3 flex items-center gap-2">
+            🔔 {lang === 'tr' ? 'E-posta Bildirimleri' : 'Email Notifications'}
+          </p>
+          <div className="space-y-3">
+            {[
+              { key: 'email_new_chapter',  label: lang === 'tr' ? 'Abone olduğum hikayeye yeni bölüm eklenince' : 'New chapter in subscribed stories' },
+              { key: 'email_new_follower', label: lang === 'tr' ? 'Biri beni takip ettiğinde' : 'When someone follows me' },
+              { key: 'email_new_comment',  label: lang === 'tr' ? 'Hikayeme yorum yapıldığında' : 'When someone comments on my story' },
+            ].map(({ key, label }) => (
+              <label key={key} className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm text-[var(--fg-muted)]">{label}</span>
+                <div
+                  onClick={() => setEmailPrefs(p => ({ ...p, [key]: !p[key as keyof typeof p] }))}
+                  className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 cursor-pointer ${emailPrefs[key as keyof typeof emailPrefs] ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${emailPrefs[key as keyof typeof emailPrefs] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
 
         <div className="flex gap-3 pt-2">
           <Link href={`/profile/${originalUsername}`}

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { createClient } from '@/lib/supabase/server'
+import { verifyMagicBytes } from '@/lib/upload-security'
 
 const MAX_SIZE = 5 * 1024 * 1024
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED  = ['image/jpeg', 'image/png', 'image/webp']
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     try { formData = await req.formData() }
     catch { return NextResponse.json({ error: 'Invalid form data.' }, { status: 400 }) }
 
-    const file = formData.get('file')
+    const file    = formData.get('file')
     const storyId = formData.get('storyId')
 
     if (!(file instanceof File))
@@ -24,22 +25,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Valid story ID is required.' }, { status: 400 })
 
     if (!ALLOWED.includes(file.type))
-      return NextResponse.json({ error: 'Only JPEG, PNG, WebP allowed.' }, { status: 415 })
+      return NextResponse.json({ error: 'Lütfen geçerli bir görsel dosyası seçin (JPEG, PNG veya WebP).' }, { status: 415 })
 
     if (file.size > MAX_SIZE)
-      return NextResponse.json({ error: 'Cover must be under 5MB.' }, { status: 413 })
+      return NextResponse.json({ error: 'Kapak görseli 5MB\'dan küçük olmalı.' }, { status: 413 })
 
     const supabase = await createClient()
 
-    // Verify ownership
     const { data: story } = await supabase
       .from('hikayeler').select('id').eq('id', storyId).eq('yazar_id', user.id).single()
     if (!story)
       return NextResponse.json({ error: 'Story not found or access denied.' }, { status: 404 })
 
-    const bytes = await file.arrayBuffer()
+    const bytes  = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const ext = file.type === 'image/webp' ? 'webp' : file.type === 'image/png' ? 'png' : 'jpg'
+
+    // Server-side magic bytes check
+    if (!verifyMagicBytes(bytes, file.type))
+      return NextResponse.json({ error: 'Lütfen geçerli bir görsel dosyası seçin (JPEG, PNG veya WebP).' }, { status: 415 })
+
+    const ext         = file.type === 'image/webp' ? 'webp' : file.type === 'image/png' ? 'png' : 'jpg'
     const storagePath = `${storyId}/cover.${ext}`
 
     console.log('[Cover] Uploading to kapaklar/', storagePath)

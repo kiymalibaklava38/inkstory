@@ -106,6 +106,9 @@ export async function checkRateLimit(
   req: NextRequest,
   config: RateLimitConfig
 ): Promise<NextResponse | null> {
+  // Development'ta rate limit kapalı
+  if (process.env.NODE_ENV === 'development') return null
+
   const ip  = getClientIp(req)
   const key = `rl:${config.prefix}:${ip}`
 
@@ -157,4 +160,8 @@ export const apiLimiter: RateLimitConfig = {
 /** Comment posting: 15 / min */
 export const commentLimiter: RateLimitConfig = {
   limit: 15, windowSec: 60, prefix: 'comment',
+}
+
+export const dmLimiter: RateLimitConfig = {
+  limit: 30, windowSec: 60, prefix: 'dm',
 }

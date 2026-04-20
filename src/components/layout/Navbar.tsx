@@ -8,7 +8,7 @@ import { useTheme } from './ThemeProvider'
 import { useLang } from '@/lib/i18n'
 import { LangSwitcher } from '@/components/ui/LangSwitcher'
 import { InkLogo } from '@/components/ui/InkLogo'
-import { PenLine, Menu, X, BookMarked, LogOut, User, LayoutDashboard, Bell, Sun, Moon, Shield, Crown, Sparkles } from 'lucide-react'
+import { PenLine, Menu, X, BookMarked, LogOut, User, LayoutDashboard, Bell, Sun, Moon, Shield, Crown, Sparkles, MessageSquare } from 'lucide-react'
 import type { User as SupaUser } from '@supabase/supabase-js'
 
 interface Profile { id: string; username: string; display_name: string | null; avatar_url: string | null; is_admin: boolean }
@@ -147,6 +147,9 @@ export function Navbar() {
                 <Link href="/notifications" onClick={()=>{ setNotifCount(0); if(user) localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString()) }} className="relative p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all">
                   <Bell style={{width:17,height:17}} className={notifPulse?'realtime-pulse':''}/>
                   {notifCount>0&&<span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[var(--accent)] rounded-full text-[10px] text-white font-bold flex items-center justify-center">{notifCount>9?'9+':notifCount}</span>}
+                </Link>
+                <Link href="/messages" className="p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all" title="Mesajlar">
+                  <MessageSquare style={{width:17,height:17}}/>
                 </Link>
                 <div className="relative" ref={userMenuRef}>
                   <button onClick={()=>setUserMenuOpen(v=>!v)} className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full hover:bg-[var(--bg-subtle)] border border-transparent hover:border-[var(--border)] transition-all">
