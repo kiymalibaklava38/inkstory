@@ -86,22 +86,31 @@ export function Navbar() {
   const loadUnreadCount = async (uid: string) => {
     const lastSeen = localStorage.getItem(`notif_seen_${uid}`) || '1970-01-01'
 
-    // Sadece benim hikayelerime yapılan yorum/beğeni + beni takip edenler
+    // Önce kendi hikaye ID'lerini al
+    const { data: myStories } = await supabase
+      .from('hikayeler').select('id').eq('yazar_id', uid)
+    const storyIds = (myStories || []).map((s: any) => s.id)
+
+    if (storyIds.length === 0) {
+      // Hiç hikaye yoksa sadece takipçi sayısına bak
+      const { count: followCount } = await supabase
+        .from('takip').select('id', { count: 'exact', head: true })
+        .eq('takip_edilen_id', uid).gt('created_at', lastSeen)
+      setNotifCount(followCount || 0)
+      return
+    }
+
     const [{ count: commentCount }, { count: likeCount }, { count: followCount }] = await Promise.all([
       supabase.from('yorumlar')
         .select('id', { count: 'exact', head: true })
         .neq('yazar_id', uid)
         .gt('created_at', lastSeen)
-        .in('hikaye_id',
-          supabase.from('hikayeler').select('id').eq('yazar_id', uid)
-        ),
+        .in('hikaye_id', storyIds),
       supabase.from('begeniler')
         .select('id', { count: 'exact', head: true })
         .neq('kullanici_id', uid)
         .gt('created_at', lastSeen)
-        .in('hikaye_id',
-          supabase.from('hikayeler').select('id').eq('yazar_id', uid)
-        ),
+        .in('hikaye_id', storyIds),
       supabase.from('takip')
         .select('id', { count: 'exact', head: true })
         .eq('takip_edilen_id', uid)
