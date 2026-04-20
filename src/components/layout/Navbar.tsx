@@ -40,25 +40,26 @@ export function Navbar() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Mesajlar sayfasındayken DM badge'ini sıfırla + bildirim sayfasında notif badge'ini sıfırla
+  // Mesajlar/bildirimler sayfasındayken badge sıfırla
   useEffect(() => {
     if (pathname === '/messages') {
+      // Sayfadayken sadece sıfırla — DB'den tekrar çekme (race condition olur)
       setUnreadDMs(0)
-      // DB'deki okunmamışları da işaretle (sayfayı tazele)
-      if (user) loadUnreadDMs(user.id)
     }
     if (pathname === '/notifications' && user) {
       setNotifCount(0)
       localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString())
-      // DB'den taze sayı al - gerçekten sıfır mı doğrula
-      loadUnreadCount(user.id)
     }
   }, [pathname, user?.id])
 
   const loadProfile = async (uid: string) => {
     const { data } = await supabase.from('profiles').select('id,username,display_name,avatar_url,is_admin').eq('id', uid).single()
     setProfile(data)
-    await Promise.all([loadUnreadCount(uid), loadUnreadDMs(uid)])
+    await loadUnreadCount(uid)
+    // Mesajlar sayfasındaysak badge gösterme
+    if (window.location.pathname !== '/messages') {
+      await loadUnreadDMs(uid)
+    }
   }
 
   const loadUnreadDMs = async (uid: string) => {
@@ -147,14 +148,14 @@ export function Navbar() {
         setTimeout(() => setNotifPulse(false), 2000)
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mesajlar' }, (payload) => {
-        // Sadece bana gelen mesajlar — mesajlar sayfasında değilsek say
         if (payload.new.gonderen_id === user.id) return
-        if (pathname === '/messages') return
+        // window.location kullan — ref'e gerek yok, her zaman güncel
+        if (window.location.pathname === '/messages') return
         setUnreadDMs(n => n + 1)
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [user, pathname])
+  }, [user])
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false) }
