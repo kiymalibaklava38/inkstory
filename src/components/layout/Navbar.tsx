@@ -20,6 +20,7 @@ export function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(0)
   const [notifPulse, setNotifPulse] = useState(false)
+  const [unreadDMs, setUnreadDMs] = useState(0)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -34,41 +35,76 @@ export function Navbar() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null)
       if (session?.user) loadProfile(session.user.id)
-      else { setProfile(null); setNotifCount(0) }
+      else { setProfile(null); setNotifCount(0); setUnreadDMs(0) }
     })
     return () => subscription.unsubscribe()
   }, [])
 
+  // Mesajlar sayfasındayken DM badge'ini sıfırla
+  useEffect(() => {
+    if (pathname === '/messages') setUnreadDMs(0)
+    if (pathname === '/notifications' && user) {
+      setNotifCount(0)
+      localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString())
+    }
+  }, [pathname, user])
+
   const loadProfile = async (uid: string) => {
     const { data } = await supabase.from('profiles').select('id,username,display_name,avatar_url,is_admin').eq('id', uid).single()
     setProfile(data)
-    // Load unread notification count on login
-    await loadUnreadCount(uid)
+    await Promise.all([loadUnreadCount(uid), loadUnreadDMs(uid)])
+  }
+
+  const loadUnreadDMs = async (uid: string) => {
+    try {
+      // Önce konuşma ID'lerini al
+      const { data: myConvos } = await supabase
+        .from('konusmalar')
+        .select('id')
+        .or(`katilimci_1.eq.${uid},katilimci_2.eq.${uid}`)
+
+      if (!myConvos || myConvos.length === 0) { setUnreadDMs(0); return }
+
+      const convIds = myConvos.map(c => c.id)
+      const { count } = await supabase
+        .from('mesajlar')
+        .select('id', { count: 'exact', head: true })
+        .eq('okundu', false)
+        .neq('gonderen_id', uid)
+        .in('konusma_id', convIds)
+
+      setUnreadDMs(count || 0)
+    } catch { setUnreadDMs(0) }
   }
 
   const loadUnreadCount = async (uid: string) => {
-    // Get last time user visited notifications page from localStorage
     const lastSeen = localStorage.getItem(`notif_seen_${uid}`) || '1970-01-01'
 
+    // Sadece benim hikayelerime yapılan yorum/beğeni + beni takip edenler
     const [{ count: commentCount }, { count: likeCount }, { count: followCount }] = await Promise.all([
       supabase.from('yorumlar')
         .select('id', { count: 'exact', head: true })
         .neq('yazar_id', uid)
-        .gt('created_at', lastSeen),
+        .gt('created_at', lastSeen)
+        .in('hikaye_id',
+          supabase.from('hikayeler').select('id').eq('yazar_id', uid)
+        ),
       supabase.from('begeniler')
         .select('id', { count: 'exact', head: true })
         .neq('kullanici_id', uid)
-        .gt('created_at', lastSeen),
+        .gt('created_at', lastSeen)
+        .in('hikaye_id',
+          supabase.from('hikayeler').select('id').eq('yazar_id', uid)
+        ),
       supabase.from('takip')
         .select('id', { count: 'exact', head: true })
         .eq('takip_edilen_id', uid)
         .gt('created_at', lastSeen),
     ])
 
-    // Filter comments/likes for own stories only (approximate — full filter in notifications page)
     const total = (commentCount || 0) + (likeCount || 0) + (followCount || 0)
+    setNotifCount(total)
     if (total > 0) {
-      setNotifCount(total)
       setNotifPulse(true)
       setTimeout(() => setNotifPulse(false), 3000)
     }
@@ -78,9 +114,7 @@ export function Navbar() {
     if (!user) return
     const ch = supabase.channel('navbar-notif')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'yorumlar' }, async (payload) => {
-        // Skip own comments
         if (payload.new.yazar_id === user.id) return
-        // Check if the story belongs to current user
         const { data: story } = await supabase
           .from('hikayeler').select('yazar_id').eq('id', payload.new.hikaye_id).single()
         if (story?.yazar_id !== user.id) return
@@ -89,9 +123,7 @@ export function Navbar() {
         setTimeout(() => setNotifPulse(false), 2000)
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'begeniler' }, async (payload) => {
-        // Skip own likes
         if (payload.new.kullanici_id === user.id) return
-        // Check if the story belongs to current user
         const { data: story } = await supabase
           .from('hikayeler').select('yazar_id').eq('id', payload.new.hikaye_id).single()
         if (story?.yazar_id !== user.id) return
@@ -99,9 +131,15 @@ export function Navbar() {
         setNotifPulse(true)
         setTimeout(() => setNotifPulse(false), 2000)
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mesajlar' }, (payload) => {
+        // Sadece bana gelen mesajlar — mesajlar sayfasında değilsek say
+        if (payload.new.gonderen_id === user.id) return
+        if (pathname === '/messages') return
+        setUnreadDMs(n => n + 1)
+      })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [user])
+  }, [user, pathname])
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false) }
@@ -144,12 +182,17 @@ export function Navbar() {
             <Link href="/write" className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white hover:scale-105 transition-all ml-1" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>
                   <PenLine style={{width:14,height:14}}/>{t.write}
                 </Link>
-                <Link href="/notifications" onClick={()=>{ setNotifCount(0); if(user) localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString()) }} className="relative p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all">
+                <Link href="/notifications"
+                  onClick={()=>{ setNotifCount(0); if(user) localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString()) }}
+                  className="relative p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all">
                   <Bell style={{width:17,height:17}} className={notifPulse?'realtime-pulse':''}/>
-                  {notifCount>0&&<span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[var(--accent)] rounded-full text-[10px] text-white font-bold flex items-center justify-center">{notifCount>9?'9+':notifCount}</span>}
+                  {notifCount>0&&<span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-[var(--accent)] rounded-full text-[10px] text-white font-bold flex items-center justify-center">{notifCount>9?'9+':notifCount}</span>}
                 </Link>
-                <Link href="/messages" className="p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all" title="Mesajlar">
+                <Link href="/messages"
+                  onClick={()=>setUnreadDMs(0)}
+                  className="relative p-2 rounded-full text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-subtle)] transition-all" title="Mesajlar">
                   <MessageSquare style={{width:17,height:17}}/>
+                  {unreadDMs>0&&<span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-[var(--accent)] rounded-full text-[10px] text-white font-bold flex items-center justify-center">{unreadDMs>9?'9+':unreadDMs}</span>}
                 </Link>
                 <div className="relative" ref={userMenuRef}>
                   <button onClick={()=>setUserMenuOpen(v=>!v)} className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-full hover:bg-[var(--bg-subtle)] border border-transparent hover:border-[var(--border)] transition-all">

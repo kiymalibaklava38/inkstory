@@ -34,13 +34,13 @@ export default function NotificationsPage() {
 
   const buildCommentText = (displayName: string, snippet: string) =>
     lang === 'tr'
-      ? `<strong>${displayName}</strong> Yorum Yaptı: "${snippet}"`
-      : `<strong>${displayName}</strong> Commented: "${snippet}"`
+      ? `<strong>${displayName}</strong> yorum yaptı: "${snippet}"`
+      : `<strong>${displayName}</strong> commented: "${snippet}"`
 
   const buildFollowText = (displayName: string) =>
     lang === 'tr'
-      ? `<strong>${displayName}</strong> Seni takip etmeye başladı`
-      : `<strong>${displayName}</strong> Started following you`
+      ? `<strong>${displayName}</strong> seni takip etmeye başladı`
+      : `<strong>${displayName}</strong> started following you`
 
   useEffect(() => {
     const init = async () => {
@@ -118,6 +118,9 @@ export default function NotificationsPage() {
 
   const loadNotifs = async (userId: string) => {
     setLoading(true)
+
+    // Bildirim sayfası açıldığında "görüldü" işaretle — Navbar badge sıfırlanır
+    try { localStorage.setItem(`notif_seen_${userId}`, new Date().toISOString()) } catch {}
 
     const [{ data: likes }, { data: comments }, { data: follows }] = await Promise.all([
       supabase.from('begeniler')
