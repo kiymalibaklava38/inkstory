@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-helpers'
 import { createClient } from '@/lib/supabase/server'
 
-// POST — konuşmadaki tüm mesajları okundu işaretle
 export async function POST(req: NextRequest) {
   const { user, error: authError } = await requireAuth()
   if (authError) return authError
@@ -21,19 +20,24 @@ export async function POST(req: NextRequest) {
     .or(`katilimci_1.eq.${user.id},katilimci_2.eq.${user.id}`)
     .single()
 
-  if (!conv)
+  if (!conv) {
+    console.error('[Read] Konuşma bulunamadı:', conversationId, user.id)
     return NextResponse.json({ error: 'Konuşma bulunamadı.' }, { status: 404 })
+  }
 
-  // Bana gelen tüm okunmamış mesajları okundu yap
-  const { error } = await supabase
+  // Bana gelen okunmamış mesajları okundu yap
+  const { error, count } = await supabase
     .from('mesajlar')
     .update({ okundu: true })
     .eq('konusma_id', conversationId)
     .eq('okundu', false)
     .neq('gonderen_id', user.id)
 
-  if (error)
-    return NextResponse.json({ error: 'Güncellenemedi.' }, { status: 500 })
+  if (error) {
+    console.error('[Read] Update error:', error.message, error.code, error.details)
+    return NextResponse.json({ error: 'Güncellenemedi.', detail: error.message }, { status: 500 })
+  }
 
+  console.log(`[Read] ${count ?? '?'} mesaj okundu işaretlendi. conv=${conversationId}`)
   return NextResponse.json({ success: true })
 }
