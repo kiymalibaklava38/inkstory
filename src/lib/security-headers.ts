@@ -18,16 +18,19 @@ export function applySecurityHeaders(response: NextResponse): NextResponse {
 
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
+    // Paddle.js CDN + Next.js inline scripts
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.paddle.com`,
+    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.paddle.com`,
     `font-src 'self' https://fonts.gstatic.com`,
-    `img-src 'self' data: blob: https://${supabaseHost} https://avatars.githubusercontent.com`,
-    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost}`,
-    `frame-src 'none'`,
+    `img-src 'self' data: blob: https://${supabaseHost} https://avatars.githubusercontent.com https://*.paddle.com`,
+    // Supabase realtime + Paddle API + Paddle sandbox
+    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://api.paddle.com https://sandbox-api.paddle.com https://*.paddle.com`,
+    // Paddle overlay checkout iframe
+    `frame-src 'self' https://*.paddle.com https://paddle.com`,
     `frame-ancestors 'none'`,
     `object-src 'none'`,
     `base-uri 'self'`,
-    `form-action 'self'`,
+    `form-action 'self' https://*.paddle.com`,
     `upgrade-insecure-requests`,
   ].join('; ')
 
