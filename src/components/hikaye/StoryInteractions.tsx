@@ -255,18 +255,53 @@ export function CommentsSection({ storyId, userId }: { storyId: string; userId: 
 
   const loadComments = async () => {
     setLoading(true)
-    const { data } = await supabase
+
+    // Önce yorumları çek — profiles join yok (FK belirsizliği sorunu)
+    const { data: rawComments, error } = await supabase
       .from('yorumlar')
-      .select('id, icerik, created_at, ust_yorum_id, yazar_id, profiles(username, display_name, avatar_url, is_verified, verification_badge)')
+      .select('id, icerik, created_at, ust_yorum_id, yazar_id')
       .eq('hikaye_id', storyId)
       .order('created_at', { ascending: true })
       .limit(100)
 
-    const all = (data as unknown as Comment[]) || []
-    const top = all.filter(c => !c.ust_yorum_id).map(c => ({
+    if (error) {
+      console.error('[Comments] Load error:', error.message)
+      setLoading(false)
+      setLoaded(true)
+      return
+    }
+
+    const comments = rawComments || []
+
+    if (comments.length === 0) {
+      setComments([])
+      setLoading(false)
+      setLoaded(true)
+      return
+    }
+
+    // Benzersiz yazar ID'lerini topla, tek seferde profil çek
+    const authorIds = Array.from(new Set(comments.map((c: any) => c.yazar_id)))
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, is_verified, verification_badge')
+      .in('id', authorIds)
+
+    const profileMap: Record<string, any> = {}
+    ;(profiles || []).forEach((p: any) => { profileMap[p.id] = p })
+
+    // Yorumlarla profilleri birleştir
+    const enriched = comments.map((c: any) => ({
       ...c,
-      replies: all.filter(r => r.ust_yorum_id === c.id),
+      profiles: profileMap[c.yazar_id] || { username: 'Silinmiş', display_name: null, avatar_url: null },
     }))
+
+    // Tree yapısı: üst yorumlar + cevaplar
+    const top = enriched.filter((c: any) => !c.ust_yorum_id).map((c: any) => ({
+      ...c,
+      replies: enriched.filter((r: any) => r.ust_yorum_id === c.id),
+    }))
+
     setComments(top)
     setLoading(false)
     setLoaded(true)
@@ -275,15 +310,31 @@ export function CommentsSection({ storyId, userId }: { storyId: string; userId: 
   const send = async () => {
     if (!text.trim() || !userId || sending) return
     setSending(true)
-    await fetch('/api/comments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storyId, content: text.trim(), parentId: replyTo?.id }),
-    })
-    setText('')
-    setReplyTo(null)
-    logEngagement(storyId, 'comment')
-    await loadComments()
+    const content = text.trim()
+
+    try {
+      const res = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storyId, content, parentId: replyTo?.id ?? undefined }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        alert(data.error || 'Yorum gönderilemedi. Tekrar dene.')
+        setSending(false)
+        return
+      }
+
+      setText('')
+      setReplyTo(null)
+      logEngagement(storyId, 'comment')
+      await loadComments()
+    } catch (err) {
+      alert('Bağlantı hatası. Tekrar dene.')
+    }
+
     setSending(false)
   }
 

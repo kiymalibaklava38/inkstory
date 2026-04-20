@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, commentLimiter } from '@/lib/ratelimit'
 import { requireAuth } from '@/lib/auth-helpers'
-import { parseOrError, CommentSchema } from '@/lib/validation'
-import { escapeHtml } from '@/lib/sanitize'
 import { createClient } from '@/lib/supabase/server'
+
+// Basit XSS koruması — script taglerini temizle ama normal metni bozmaz
+function sanitizeComment(text: string): string {
+  return text
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')   // tüm HTML taglerini kaldır
+    .trim()
+}
 
 export async function POST(req: NextRequest) {
   const limited = await checkRateLimit(req, commentLimiter)
@@ -16,52 +22,72 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 }) }
 
-  const { data, error: validErr } = parseOrError(CommentSchema, body)
-  if (validErr || !data) return NextResponse.json({ error: validErr || 'Geçersiz veri.' }, { status: 400 })
+  const { storyId, content, parentId, chapterId } = body as any
 
-  const safeContent = escapeHtml(data.content)
-  const supabase    = await createClient()
+  // Manuel validasyon — Zod schema bypass sorunlarını önler
+  if (!storyId || typeof storyId !== 'string' || !/^[0-9a-f-]{36}$/.test(storyId))
+    return NextResponse.json({ error: 'Geçersiz hikaye ID.' }, { status: 400 })
+
+  if (!content || typeof content !== 'string' || content.trim().length === 0)
+    return NextResponse.json({ error: 'Yorum boş olamaz.' }, { status: 400 })
+
+  if (content.trim().length > 2000)
+    return NextResponse.json({ error: 'Yorum en fazla 2000 karakter olabilir.' }, { status: 400 })
+
+  if (parentId && (typeof parentId !== 'string' || !/^[0-9a-f-]{36}$/.test(parentId)))
+    return NextResponse.json({ error: 'Geçersiz parent ID.' }, { status: 400 })
+
+  const safeContent = sanitizeComment(content)
+
+  if (!safeContent)
+    return NextResponse.json({ error: 'Yorum boş olamaz.' }, { status: 400 })
+
+  const supabase = await createClient()
 
   // Hikaye yayında mı?
-  const { data: story } = await supabase
+  const { data: story, error: storyErr } = await supabase
     .from('hikayeler')
     .select('id, durum')
-    .eq('id', data.storyId)
+    .eq('id', storyId)
     .in('durum', ['yayinda', 'tamamlandi'])
     .single()
 
-  if (!story) return NextResponse.json({ error: 'Hikaye bulunamadı.' }, { status: 404 })
+  if (storyErr || !story) {
+    console.error('[Comments] Story not found:', storyId, storyErr?.message)
+    return NextResponse.json({ error: 'Hikaye bulunamadı veya yayında değil.' }, { status: 404 })
+  }
 
-  // Cevapsa parent kontrolü
-  if (data.parentId) {
+  // Parent yorum kontrolü
+  if (parentId) {
     const { data: parent } = await supabase
       .from('yorumlar')
       .select('id')
-      .eq('id', data.parentId)
-      .eq('hikaye_id', data.storyId)
+      .eq('id', parentId)
+      .eq('hikaye_id', storyId)
       .single()
-    if (!parent) return NextResponse.json({ error: 'Üst yorum bulunamadı.' }, { status: 404 })
+    if (!parent)
+      return NextResponse.json({ error: 'Üst yorum bulunamadı.' }, { status: 404 })
   }
 
-  // Insert — select yapmıyoruz, ambiguous FK sorununu tamamen önler
-  const { data: inserted, error } = await supabase
+  // Insert
+  const { data: inserted, error: insertErr } = await supabase
     .from('yorumlar')
     .insert({
-      hikaye_id:    data.storyId,
-      bolum_id:     data.chapterId ?? null,
+      hikaye_id:    storyId,
+      bolum_id:     chapterId ?? null,
       yazar_id:     user.id,
       icerik:       safeContent,
-      ust_yorum_id: data.parentId ?? null,
+      ust_yorum_id: parentId ?? null,
     })
     .select('id, icerik, created_at, yazar_id, ust_yorum_id')
     .single()
 
-  if (error) {
-    console.error('[Comments] Insert error:', error.message)
-    return NextResponse.json({ error: 'Yorum gönderilemedi.' }, { status: 500 })
+  if (insertErr) {
+    console.error('[Comments] Insert error:', insertErr.message, insertErr.code, insertErr.details)
+    return NextResponse.json({ error: 'Yorum gönderilemedi: ' + insertErr.message }, { status: 500 })
   }
 
-  // Profili ayrı çek — FK belirsizliği yok
+  // Profili ayrı çek
   const { data: profile } = await supabase
     .from('profiles')
     .select('username, display_name, avatar_url, is_verified, verification_badge')
@@ -99,6 +125,9 @@ export async function DELETE(req: NextRequest) {
     .eq('id', commentId)
     .eq('yazar_id', user.id)
 
-  if (error) return NextResponse.json({ error: 'Silinemedi.' }, { status: 500 })
+  if (error) {
+    console.error('[Comments] Delete error:', error.message)
+    return NextResponse.json({ error: 'Silinemedi.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }
