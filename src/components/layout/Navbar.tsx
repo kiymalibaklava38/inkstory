@@ -167,6 +167,7 @@ export function Navbar() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
   return (
+    <>
     <nav className="sticky top-0 z-50 glass border-b border-[var(--border)]">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between h-16 gap-3">
@@ -251,46 +252,115 @@ export function Navbar() {
             )}
           </div>
 
-          <div className="md:hidden flex items-center gap-2">
-            <LangSwitcher/>
-            <button className="p-2 text-[var(--fg-muted)]" onClick={()=>setMobileOpen(v=>!v)}>
-              {mobileOpen?<X style={{width:20,height:20}}/>:<Menu style={{width:20,height:20}}/>}
+          {/* Mobile top-right */}
+          <div className="md:hidden flex items-center gap-1">
+            {user && (
+              <Link href="/notifications"
+                onClick={()=>{ setNotifCount(0); if(user) localStorage.setItem(`notif_seen_${user.id}`, new Date().toISOString()) }}
+                className="relative p-2 text-[var(--fg-muted)]">
+                <Bell style={{width:20,height:20}} className={notifPulse?'realtime-pulse':''}/>
+                {notifCount>0&&<span className="absolute top-0.5 right-0.5 min-w-[14px] h-3.5 px-0.5 bg-[var(--accent)] rounded-full text-[8px] text-white font-bold flex items-center justify-center">{notifCount>9?'9+':notifCount}</span>}
+              </Link>
+            )}
+            <button onClick={toggle} className="p-2 text-[var(--fg-muted)]">
+              {theme==='dark'?<Sun style={{width:20,height:20}}/>:<Moon style={{width:20,height:20}}/>}
             </button>
+            {user
+              ? <button className="p-2 text-[var(--fg-muted)]" onClick={()=>setMobileOpen(v=>!v)}>
+                  {mobileOpen?<X style={{width:20,height:20}}/>:<Menu style={{width:20,height:20}}/>}
+                </button>
+              : <Link href="/login" className="px-3 py-1.5 rounded-full text-xs font-semibold text-white" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>Giriş</Link>
+            }
           </div>
         </div>
 
+        {/* Mobile dropdown (profil menüsü) */}
         {mobileOpen&&(
-          <div className="md:hidden py-4 border-t border-[var(--border)] animate-fade-in">
-            <div className="flex flex-col gap-1">
-              <Link href="/stories"   onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.stories}</Link>
-              <Link href="/search"    onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.discover}</Link>
-              <Link href="/sana-ozel" onClick={()=>setMobileOpen(false)} className={`px-3 py-2.5 text-sm hover:bg-[var(--bg-subtle)] rounded-xl font-medium ${pathname.startsWith('/sana-ozel')?'text-[var(--accent)]':'text-[var(--fg)]'}`}>{lang==='tr'?'Sana Özel':'For You'}</Link>
+          <div className="md:hidden py-3 border-t border-[var(--border)] animate-fade-in">
+            <div className="flex flex-col gap-0.5 px-3">
+              {profile && (
+                <div className="flex items-center gap-3 px-3 py-3 mb-1">
+                  {profile.avatar_url
+                    ? <img src={profile.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover"/>
+                    : <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>{(profile.display_name||profile.username||'?')[0].toUpperCase()}</div>
+                  }
+                  <div>
+                    <p className="font-semibold text-sm text-[var(--fg)]">{profile.display_name||profile.username}</p>
+                    <p className="text-xs text-[var(--fg-muted)]">@{profile.username}</p>
+                  </div>
+                </div>
+              )}
               {user?(
                 <>
-                  <Link href="/write"         onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm font-medium text-[var(--accent)] hover:bg-[var(--bg-subtle)] rounded-xl">✍ {t.write}</Link>
-                  <Link href="/verify" onClick={()=>setMobileOpen(false)} className="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--accent)] font-medium hover:bg-[var(--bg-subtle)] rounded-xl">
-                    <span>✅</span>{lang==='tr'?'Doğrulanmış Yazar Ol':'Get Verified'}
-                  </Link>
-                  <Link href="/dashboard"     onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.writerDashboard}</Link>
-                  <Link href="/library"       onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.myLibrary}</Link>
-                  <Link href="/notifications" onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.notifications} {notifCount>0&&`(${notifCount})`}</Link>
-                  <Link href={`/profile/${profile?.username}`} onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.myProfile}</Link>
+                  <Link href={`/profile/${profile?.username}`} onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">👤 {t.myProfile}</Link>
+                  <Link href="/dashboard"  onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">📊 {t.writerDashboard}</Link>
+                  <Link href="/library"    onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">📚 {t.myLibrary}</Link>
+                  <Link href="/premium"    onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm font-medium text-amber-400 hover:bg-[var(--bg-subtle)] rounded-xl">⭐ Premium</Link>
+                  <Link href="/verify"     onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--accent)] hover:bg-[var(--bg-subtle)] rounded-xl">✅ {lang==='tr'?'Doğrulanmış Yazar Ol':'Get Verified'}</Link>
+                  <Link href="/sana-ozel"  onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">✨ {lang==='tr'?'Sana Özel':'For You'}</Link>
                   {profile?.is_admin&&<Link href="/admin" onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--accent)] hover:bg-[var(--bg-subtle)] rounded-xl">⚡ {t.adminPanel}</Link>}
-                  <button onClick={signOut} className="px-3 py-2.5 text-sm text-red-400 text-left hover:bg-red-500/10 rounded-xl">{t.signOut}</button>
+                  <div className="border-t border-[var(--border)] my-1"/>
+                  <button onClick={signOut} className="px-3 py-2.5 text-sm text-red-400 text-left hover:bg-red-500/10 rounded-xl">🚪 {t.signOut}</button>
                 </>
               ):(
                 <>
+                  <Link href="/stories"  onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.stories}</Link>
+                  <Link href="/search"   onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.discover}</Link>
                   <Link href="/login"    onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm text-[var(--fg)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.signIn}</Link>
                   <Link href="/register" onClick={()=>setMobileOpen(false)} className="px-3 py-2.5 text-sm font-medium text-[var(--accent)] hover:bg-[var(--bg-subtle)] rounded-xl">{t.getStarted}</Link>
                 </>
               )}
-              <button onClick={toggle} className="px-3 py-2.5 text-sm text-[var(--fg-muted)] text-left hover:bg-[var(--bg-subtle)] rounded-xl">
-                {theme==='dark'?`☀️ ${t.lightMode}`:`🌙 ${t.darkMode}`}
-              </button>
             </div>
           </div>
         )}
       </div>
     </nav>
+
+    {/* ── Instagram-style Mobile Bottom Nav ── */}
+    {user && (
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-[var(--border)]"
+        style={{paddingBottom:'env(safe-area-inset-bottom)'}}>
+        <div className="flex items-center justify-around px-1 py-1.5">
+          <Link href="/" className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl ${pathname==='/'?'text-[var(--accent)]':'text-[var(--fg-muted)]'}`}>
+            <svg style={{width:24,height:24}} fill={pathname==='/'?'currentColor':'none'} stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            <span className="text-[9px] font-medium">Ana Sayfa</span>
+          </Link>
+
+          <Link href="/search" className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl ${isActive('/search')?'text-[var(--accent)]':'text-[var(--fg-muted)]'}`}>
+            <svg style={{width:24,height:24}} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="m21 21-4.35-4.35"/>
+            </svg>
+            <span className="text-[9px] font-medium">Keşfet</span>
+          </Link>
+
+          <Link href="/write" className="flex flex-col items-center gap-0.5 px-2 py-1">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg -mt-4 border-2 border-[var(--bg)]" style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>
+              <PenLine style={{width:22,height:22}} className="text-white"/>
+            </div>
+          </Link>
+
+          <Link href="/messages" onClick={()=>setUnreadDMs(0)}
+            className={`relative flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl ${isActive('/messages')?'text-[var(--accent)]':'text-[var(--fg-muted)]'}`}>
+            <div className="relative">
+              <MessageSquare style={{width:24,height:24}} fill={isActive('/messages')?'currentColor':'none'} strokeWidth={1.8}/>
+              {unreadDMs>0&&<span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 bg-[var(--accent)] rounded-full text-[9px] text-white font-bold flex items-center justify-center">{unreadDMs>9?'9+':unreadDMs}</span>}
+            </div>
+            <span className="text-[9px] font-medium">Mesajlar</span>
+          </Link>
+
+          <button onClick={()=>setMobileOpen(v=>!v)}
+            className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl ${mobileOpen?'text-[var(--accent)]':'text-[var(--fg-muted)]'}`}>
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt="" className={`w-6 h-6 rounded-full object-cover ${mobileOpen?'ring-2 ring-[var(--accent)]':''}`}/>
+              : <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${mobileOpen?'ring-2 ring-[var(--accent)]':''}`} style={{background:'linear-gradient(135deg,#d4840f,#e8a030)'}}>{(profile?.display_name||profile?.username||'?')[0].toUpperCase()}</div>
+            }
+            <span className="text-[9px] font-medium">Profil</span>
+          </button>
+        </div>
+      </nav>
+    )}
+    </>
   )
 }

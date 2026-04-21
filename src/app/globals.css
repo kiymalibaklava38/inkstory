@@ -241,3 +241,11 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(212,132,15,0); }
 }
 .realtime-pulse { animation: realtimePulse 1.5s ease-out; }
+
+/* ── Mobile bottom nav padding ───────────────────────── */
+/* Logged-in users: content doesn't get hidden under bottom nav */
+@media (max-width: 767px) {
+  main {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+}

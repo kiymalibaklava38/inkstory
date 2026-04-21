@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react' // Suspense eklendi
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -8,8 +8,8 @@ import { InkLogo } from '@/components/ui/InkLogo'
 import { useLang } from '@/lib/i18n'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-// 1. Mevcut form mantığını ayrı bir bileşene alıyoruz
-function LoginForm() {
+// useSearchParams kullanan kısmı ayrı bir bileşene taşıyoruz
+function LoginFormContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -17,23 +17,71 @@ function LoginForm() {
   const [error, setError] = useState('')
   
   const router = useRouter()
-  const searchParams = useSearchParams() // Bu hook Suspense gerektirir
+  const searchParams = useSearchParams()
   const redirect = searchParams.get('redirect') || '/'
   const supabase = createClient()
   const { t, lang } = useLang()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true); setError('')
+    setLoading(true)
+    setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError(t.invalidCreds); setLoading(false); return }
+    if (error) {
+      setError(t.invalidCreds)
+      setLoading(false)
+      return
+    }
     router.push(redirect)
     router.refresh()
   }
 
   return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">{t.email}</label>
+        <input
+          type="email" value={email} onChange={e => setEmail(e.target.value)}
+          required placeholder={lang === 'tr' ? 'ornek@mail.com' : 'you@example.com'}
+          className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
+        />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-sm font-medium text-[var(--fg)]">{t.password}</label>
+          <Link href="/forgot-password" className="text-xs text-[var(--accent)] hover:underline">
+            Şifremi unuttum
+          </Link>
+        </div>
+        <div className="relative">
+          <input
+            type={showPw ? 'text' : 'password'} value={password}
+            onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
+            className="w-full px-4 py-3 pr-12 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
+          />
+          <button type="button" onClick={() => setShowPw(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fg-muted)] hover:text-[var(--fg)]">
+            {showPw ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" disabled={loading}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50"
+        style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+        {loading ? <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" /> : t.signIn}
+      </button>
+    </form>
+  )
+}
+
+export default function LoginPage() {
+  const { t } = useLang()
+
+  return (
     <div className="min-h-screen flex">
-      {/* Sol Panel */}
+      {/* Left decorative panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center"
         style={{ background: 'linear-gradient(135deg, #060d18 0%, #1a2f4a 100%)' }}>
         <div className="absolute inset-0 opacity-10"
@@ -50,7 +98,7 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* Sağ Panel */}
+      {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[var(--bg)]">
         <div className="w-full max-w-md">
           <div className="lg:hidden text-center mb-8">
@@ -70,58 +118,12 @@ function LoginForm() {
             </p>
           </div>
 
-          {error && (
-            <div className="mb-5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">{t.email}</label>
-              <input
-                type="email" value={email} onChange={e => setEmail(e.target.value)}
-                required placeholder={lang === 'tr' ? 'ornek@mail.com' : 'you@example.com'}
-                className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">{t.password}</label>
-              <div className="relative">
-                <input
-                  type={showPw ? 'text' : 'password'} value={password}
-                  onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
-                  className="w-full px-4 py-3 pr-12 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
-                />
-                <button type="button" onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fg-muted)] hover:text-[var(--fg)]">
-                  {showPw ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
-                </button>
-              </div>
-            </div>
-
-            <button type="submit" disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-all hover:scale-[1.02] disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
-              {loading ? <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" /> : t.signIn}
-            </button>
-          </form>
+          {/* Suspense sınırını burada kuruyoruz */}
+          <Suspense fallback={<div className="text-center p-4">Yükleniyor...</div>}>
+            <LoginFormContent />
+          </Suspense>
         </div>
       </div>
     </div>
-  )
-}
-
-// 2. Ana export bileşenini Suspense ile sarmalıyoruz
-export default function LoginPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-        <Loader2 className="animate-spin text-[var(--accent)]" size={40} />
-      </div>
-    }>
-      <LoginForm />
-    </Suspense>
   )
 }
