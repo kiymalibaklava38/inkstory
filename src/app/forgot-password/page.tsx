@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { InkLogo } from '@/components/ui/InkLogo'
 import { Loader2, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
 
@@ -11,24 +10,32 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent]     = useState(false)
   const [error, setError]   = useState('')
-  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) return
     setLoading(true); setError('')
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
+    try {
+      const res = await fetch('/api/auth/send-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
 
-    if (error) {
-      setError('Mail gönderilemedi. E-posta adresini kontrol et.')
-      setLoading(false)
-      return
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || 'Mail gönderilemedi. Tekrar dene.')
+        setLoading(false)
+        return
+      }
+
+      setSent(true)
+    } catch (err) {
+      setError('Bağlantı hatası. Tekrar dene.')
     }
 
-    setSent(true)
     setLoading(false)
   }
 
