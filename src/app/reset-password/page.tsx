@@ -1,106 +1,81 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { InkLogo } from '@/components/ui/InkLogo'
 import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
 type PageState = 'loading' | 'ready' | 'invalid' | 'done'
 
-export default function ResetPasswordPage() {
-  const [state, setState]       = useState<PageState>('loading')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [showPw, setShowPw]     = useState(false)
+function ResetPasswordForm() {
+  const [state, setState]           = useState<PageState>('loading')
+  const [password, setPassword]     = useState('')
+  const [confirm, setConfirm]       = useState('')
+  const [showPw, setShowPw]         = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError]       = useState('')
-  const router   = useRouter()
-  const supabase = createClient()
+  const [error, setError]           = useState('')
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const supabase     = createClient()
 
   useEffect(() => {
-    // Supabase generateLink linki tıklandığında şu URL gelir:
-    // https://inkstory.com.tr/reset-password#access_token=xxx&refresh_token=yyy&type=recovery
-    //
-    // Supabase JS client hash'i otomatik okur ve onAuthStateChange ile
-    // PASSWORD_RECOVERY event'i fırlatır.
-    // Biz sadece bunu bekliyoruz.
+    const init = async () => {
+      // PKCE flow: ?code=xxx parametresi ile gelir
+      const code = searchParams.get('code')
 
-    let settled = false
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[ResetPassword] auth event:', event, 'session:', !!session)
-
-      if (event === 'PASSWORD_RECOVERY' && session) {
-        settled = true
-        setState('ready')
-        return
-      }
-
-      // Bazen SIGNED_IN gelir type=recovery ile
-      if (event === 'SIGNED_IN' && session) {
-        settled = true
-        setState('ready')
-        return
-      }
-
-      if (event === 'INITIAL_SESSION') {
-        if (session) {
-          // Session var — hash'ten token işlenmiş
-          settled = true
-          setState('ready')
-        }
-        // Session yok — hash'ten token bekliyoruz, timeout devrede
-      }
-    })
-
-    // Hash'i manuel parse et — bazı tarayıcılarda onAuthStateChange geç gelir
-    const hash = window.location.hash
-    if (hash && hash.includes('access_token')) {
-      // Hash var, Supabase işliyor — biraz bekle
-      const t = setTimeout(() => {
-        if (!settled) {
-          // Hâlâ session yoksa manuel dene
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-              settled = true
-              setState('ready')
-            }
-          })
-        }
-      }, 1500)
-
-      // 8 saniye max bekle
-      const deadline = setTimeout(() => {
-        if (!settled) setState('invalid')
-      }, 8000)
-
-      return () => {
-        subscription.unsubscribe()
-        clearTimeout(t)
-        clearTimeout(deadline)
-      }
-    } else {
-      // Hash yok — direkt session kontrol et (callback'ten geldiyse)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          settled = true
-          setState('ready')
-        } else {
-          // Ne hash ne session — geçersiz link
+      if (code) {
+        // Code'u session'a çevir
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (error) {
+          console.error('[ResetPassword] exchangeCodeForSession error:', error.message)
           setState('invalid')
+          return
         }
-      })
+        setState('ready')
+        return
+      }
+
+      // Implicit flow fallback: #access_token hash ile gelir
+      const hash = window.location.hash
+      if (hash.includes('access_token')) {
+        // onAuthStateChange hash'i otomatik işler
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
+            setState('ready')
+          }
+        })
+
+        // 6 saniye bekle
+        const timeout = setTimeout(() => {
+          setState(s => s === 'loading' ? 'invalid' : s)
+        }, 6000)
+
+        return () => {
+          subscription.unsubscribe()
+          clearTimeout(timeout)
+        }
+      }
+
+      // Ne code ne hash — zaten aktif session var mı?
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setState('ready')
+        return
+      }
+
+      // Hiçbir şey yok — geçersiz link
+      setState('invalid')
     }
 
-    return () => subscription.unsubscribe()
+    init()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
     if (password.length < 6) { setError('Şifre en az 6 karakter olmalı.'); return }
     if (password !== confirm) { setError('Şifreler eşleşmiyor.'); return }
 
@@ -115,11 +90,8 @@ export default function ResetPasswordPage() {
 
     await supabase.auth.signOut()
     setState('done')
-    setSubmitting(false)
     setTimeout(() => router.push('/login'), 2500)
   }
-
-  // ── Render states ──────────────────────────────────────
 
   if (state === 'loading') return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
@@ -135,7 +107,6 @@ export default function ResetPasswordPage() {
         <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Bağlantı Geçersiz</h1>
         <p className="text-[var(--fg-muted)] text-sm mb-6">
           Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.
-          Lütfen yeni bir bağlantı talep et.
         </p>
         <Link href="/forgot-password"
           className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white"
@@ -161,7 +132,6 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
       <div className="w-full max-w-md">
-
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <InkLogo size={32} />
@@ -186,8 +156,7 @@ export default function ResetPasswordPage() {
             <div className="relative">
               <input
                 type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
+                value={password} onChange={e => setPassword(e.target.value)}
                 required placeholder="En az 6 karakter" minLength={6}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
               />
@@ -202,8 +171,7 @@ export default function ResetPasswordPage() {
             <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">Şifre Tekrar</label>
             <input
               type={showPw ? 'text' : 'password'}
-              value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              value={confirm} onChange={e => setConfirm(e.target.value)}
               required placeholder="Şifreyi tekrar gir"
               className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
             />
@@ -220,5 +188,17 @@ export default function ResetPasswordPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <Loader2 style={{ width: 32, height: 32 }} className="animate-spin text-[var(--accent)]" />
+      </div>
+    }>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

@@ -13,20 +13,20 @@ export async function GET(request: Request) {
 
     if (!error) {
       if (type === 'recovery') {
-        // Şifre sıfırlama — reset-password sayfasına yönlendir
+        // Şifre sıfırlama — code'u exchange ettik, session kuruldu
+        // reset-password sayfasına yönlendir
         return NextResponse.redirect(`${origin}/reset-password`)
       }
       return NextResponse.redirect(`${origin}${next}`)
     }
 
     console.error('[Auth Callback] exchangeCodeForSession error:', error.message)
+    return NextResponse.redirect(`${origin}/login?error=auth_callback&msg=${encodeURIComponent(error.message)}`)
   }
 
-  // code yoksa hash-based flow — client-side Supabase handle eder
-  // Bu durumda reset-password sayfasına yönlendir, o sayfa hash'i işler
   if (type === 'recovery') {
     return NextResponse.redirect(`${origin}/reset-password`)
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth_callback`)
+  return NextResponse.redirect(`${origin}/login?error=no_code`)
 }
