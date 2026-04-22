@@ -1,40 +1,41 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
-import { checkRateLimit, authLimiter, apiLimiter, getClientIp } from '@/lib/ratelimit'
+import { checkRateLimit, authLimiter, apiLimiter } from '@/lib/ratelimit'
 import { applySecurityHeaders } from '@/lib/security-headers'
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname, hash } = request.nextUrl
 
-  // ── 1. Rate limiting ───────────────────────────────────
-  // RSC prefetch isteklerini muaf tut (?_rsc= veya rsc:1 header)
+  // ── 1. Recovery Link Redirection ──────────────────────
+  // Eğer ana sayfaya #access_token ile gelindiyse reset-password'e yönlendir
+  if (pathname === '/' && hash.includes('access_token')) {
+    return NextResponse.redirect(new URL(`/reset-password${hash}`, request.url))
+  }
+
+  // ── 2. Rate limiting ──────────────────────────────────
   const isRSCPrefetch = request.nextUrl.searchParams.has('_rsc') ||
     request.headers.get('rsc') === '1'
 
   if (!isRSCPrefetch) {
-    // Auth sayfaları — sadece POST isteklerine limit uygula
     if (request.method === 'POST' &&
       (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname === '/auth/callback')) {
       const limited = await checkRateLimit(request, authLimiter)
       if (limited) return limited
     }
 
-    // API routes — genel limit
     if (pathname.startsWith('/api/')) {
       const limited = await checkRateLimit(request, apiLimiter)
       if (limited) return limited
     }
   }
 
-  // ── 2. Block suspicious requests ──────────────────────
+  // ── 3. Block suspicious requests ──────────────────────
   const ua = request.headers.get('user-agent') || ''
 
-  // Block empty user-agents on API routes (bots/scanners)
   if (pathname.startsWith('/api/') && !ua) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Block common scanner paths
   const blockedPaths = [
     '/wp-admin', '/wp-login', '/.env', '/config.php',
     '/phpinfo', '/adminer', '/.git', '/backup',
@@ -43,11 +44,10 @@ export async function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 404 })
   }
 
-  // ── 3. Session management (Supabase auth) ─────────────
+  // ── 4. Session management (Supabase auth) ─────────────
   const response = await updateSession(request)
 
-  // ── 4. Security headers ────────────────────────────────
-  // Apply to all non-static responses
+  // ── 5. Security headers ────────────────────────────────
   if (
     !pathname.startsWith('/_next/static') &&
     !pathname.startsWith('/_next/image') &&
@@ -56,7 +56,7 @@ export async function middleware(request: NextRequest) {
     applySecurityHeaders(response)
   }
 
-  // ── 5. Add request ID for tracing ────────────────────
+  // ── 6. Add request ID for tracing ────────────────────
   const requestId = crypto.randomUUID()
   response.headers.set('X-Request-Id', requestId)
 
