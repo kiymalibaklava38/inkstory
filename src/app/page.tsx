@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { HomeClient } from './HomeClient'
-import { AuthRedirect } from '@/components/auth/AuthRedirect' // Yeni bileşeni ekledik
+import { AuthRedirect } from '@/components/auth/AuthRedirect'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -58,9 +58,7 @@ export default async function HomePage() {
 
   return (
     <>
-      {/* Şifre sıfırlama linki geldiğinde ana sayfada takılı kalmamak için bu bileşeni ekledik */}
       <AuthRedirect />
-      
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
