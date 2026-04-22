@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
 
-  // 1. Durum: OAuth veya Magic Link (code parametresi varsa)
+  // 1. OAuth veya Magic Link girişi
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
@@ -17,14 +17,8 @@ export async function GET(request: Request) {
     }
   }
 
-  // 2. Durum: Şifre Sıfırlama (Recovery)
-  // E-postadan gelen linkte 'access_token' ve 'refresh_token' bulunur.
-  // Supabase istemcisi, URL'deki hash (#) kısmında gelen token'ları otomatik olarak 
-  // okumaya çalışacaktır. Sadece 'type=recovery' kontrolü yaparak kullanıcıyı 
-  // şifre güncelleme sayfasına göndermen yeterlidir.
+  // 2. Şifre Sıfırlama (Recovery)
   if (type === 'recovery') {
-    // Burada session zaten kurulmuş olmalı (Supabase bunu arka planda yapar)
-    // Eğer sayfada şifre güncelleme formun varsa buraya yönlendir.
     return NextResponse.redirect(`${origin}/reset-password`)
   }
 
