@@ -25,47 +25,44 @@ function ResetPasswordForm() {
   useEffect(() => {
     let isMounted = true
 
-    const init = async () => {
-      // 1. Mevcut oturumu kontrol et
+    const handleAuth = async () => {
+      // 1. Önce URL'deki hash'i kontrol et (#access_token=...)
+      // Bu kısım e-postadan gelen linki doğrudan yakalar
+      const hash = window.location.hash
+      if (hash && hash.includes('access_token')) {
+        const params = new URLSearchParams(hash.substring(1))
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          
+          if (!error && isMounted) {
+            setState('ready')
+            // Token'ı URL'den temizle
+            window.history.replaceState(null, '', window.location.pathname)
+            return
+          }
+        }
+      }
+
+      // 2. Hash yoksa (veya zaten oturum varsa) mevcut session'ı kontrol et
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         if (isMounted) setState('ready')
-        return
-      }
-
-      // 2. PKCE (code parametresi ile gelen)
-      const code = searchParams.get('code')
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (!error && isMounted) {
-          setState('ready')
-        } else if (isMounted) {
-          setState('invalid')
-        }
-        return
-      }
-
-      // 3. Hash veya diğer durumlar için dinleyici
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session && isMounted) {
-          setState('ready')
-        }
-      })
-
-      // 4. Zaman aşımı (eğer 5 saniyede session kurulmazsa geçersiz say)
-      const timeout = setTimeout(() => {
-        if (isMounted && state === 'loading') setState('invalid')
-      }, 5000)
-
-      return () => {
-        isMounted = false
-        subscription.unsubscribe()
-        clearTimeout(timeout)
+      } else {
+        // Oturum yoksa link geçersizdir
+        if (isMounted) setState('invalid')
       }
     }
 
-    init()
-  }, [supabase, searchParams, state])
+    handleAuth()
+
+    return () => { isMounted = false }
+  }, [supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,13 +80,11 @@ function ResetPasswordForm() {
       return
     }
 
-    // Başarılı olduğunda oturumu kapat ve bitir
     await supabase.auth.signOut()
     setState('done')
     setTimeout(() => router.push('/login'), 2500)
   }
 
-  // --- Render Durumları ---
   if (state === 'loading') return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
       <Loader2 className="animate-spin text-[var(--accent)] w-8 h-8" />
@@ -131,17 +126,14 @@ function ResetPasswordForm() {
             <span className="logo-text logo-mark text-2xl">InkStory</span>
           </Link>
         </div>
-
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold text-[var(--fg)]">Yeni Şifre Belirle</h1>
         </div>
-
         {error && (
           <div className="mb-5 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
             {error}
           </div>
         )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">Yeni Şifre</label>
