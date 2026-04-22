@@ -9,14 +9,10 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -25,9 +21,13 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Güvenli veri çekme - destructuring hatasını önler
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
+
+  // ── Auth sayfaları: middleware'i bypass et ───────────────
+  if (pathname.startsWith('/reset-password') || pathname.startsWith('/forgot-password')) {
+    return supabaseResponse
+  }
 
   // ── Protected pages: redirect to login ───────────────────
   const protectedPaths = ['/write', '/profile/edit', '/library', '/dashboard', '/notifications', '/admin']
@@ -43,11 +43,7 @@ export async function updateSession(request: NextRequest) {
   // ── Admin-only pages ──────────────────────────────────────
   if (pathname.startsWith('/admin') && user) {
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin, is_banned')
-      .eq('id', user.id)
-      .single()
-      
+      .from('profiles').select('is_admin, is_banned').eq('id', user.id).single()
     if (!profile?.is_admin) {
       return NextResponse.redirect(new URL('/', request.url))
     }
@@ -60,10 +56,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/api/comments')
   )) {
     const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_banned')
-      .eq('id', user.id)
-      .single()
+      .from('profiles').select('is_banned').eq('id', user.id).single()
 
     if (profile?.is_banned) {
       // API routes: return 403

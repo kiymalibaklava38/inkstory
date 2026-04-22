@@ -8,44 +8,93 @@ import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ResetPasswordPage() {
-  const [password, setPassword]   = useState('')
-  const [confirm, setConfirm]     = useState('')
-  const [showPw, setShowPw]       = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [done, setDone]           = useState(false)
-  const [error, setError]         = useState('')
-  const [validSession, setValidSession] = useState<boolean | null>(null)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [showPw, setShowPw]     = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [done, setDone]         = useState(false)
+  const [error, setError]       = useState('')
+  const [ready, setReady]       = useState(false)   // session hazır mı
+  const [invalid, setInvalid]   = useState(false)   // link geçersiz mi
   const router   = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase hash'ten session alır — kısa bekleme gerekiyor
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Supabase URL hash'ten (#access_token=...) session'ı otomatik kurar.
+    // Biz sadece session'ın kurulmasını bekliyoruz.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[ResetPassword] auth event:', event)
+
       if (event === 'PASSWORD_RECOVERY') {
-        setValidSession(true)
+        // Doğrudan recovery flow
+        setReady(true)
+        return
+      }
+
+      if (event === 'SIGNED_IN' && session) {
+        // Supabase bazen PASSWORD_RECOVERY yerine SIGNED_IN fırlatır
+        // URL'de type=recovery varsa ya da token_hash varsa recovery demek
+        const hash   = typeof window !== 'undefined' ? window.location.hash : ''
+        const search = typeof window !== 'undefined' ? window.location.search : ''
+        const isRecovery =
+          hash.includes('type=recovery') ||
+          search.includes('type=recovery') ||
+          hash.includes('access_token')  // hash varsa recovery linki
+
+        if (isRecovery) {
+          setReady(true)
+        }
+        return
+      }
+
+      if (event === 'INITIAL_SESSION') {
+        // Sayfa yenilendiğinde gelen event — session yoksa geçersiz
+        if (!session) {
+          // Kısa bekle, başka event gelebilir
+          setTimeout(() => {
+            setInvalid(v => !ready && v === false ? true : false)
+          }, 2000)
+        }
       }
     })
 
-    // Timeout — eğer PASSWORD_RECOVERY gelmezse link geçersiz
-    const t = setTimeout(() => {
-      setValidSession(v => v === null ? false : v)
-    }, 3000)
+    // 5 saniye içinde ready olmazsa geçersiz say
+    const timeout = setTimeout(() => {
+      setReady(r => {
+        if (!r) setInvalid(true)
+        return r
+      })
+    }, 5000)
 
-    return () => { subscription.unsubscribe(); clearTimeout(t) }
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [])
+
+  // URL hash'i hemen kontrol et — access_token varsa session gelecek
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash
+    if (!hash.includes('access_token') && !hash.includes('type=recovery')) {
+      // Hash yok — zaten session var mı bak
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setReady(true)
+        } else {
+          // Hash de yok session da yok → geçersiz link
+          setTimeout(() => setInvalid(true), 500)
+        }
+      })
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
-    if (password.length < 6) {
-      setError('Şifre en az 6 karakter olmalı.')
-      return
-    }
-    if (password !== confirm) {
-      setError('Şifreler eşleşmiyor.')
-      return
-    }
+    if (password.length < 6) { setError('Şifre en az 6 karakter olmalı.'); return }
+    if (password !== confirm)  { setError('Şifreler eşleşmiyor.'); return }
 
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
@@ -61,22 +110,25 @@ export default function ResetPasswordPage() {
     setTimeout(() => router.push('/'), 2500)
   }
 
-  if (validSession === null) {
+  // Yükleniyor
+  if (!ready && !invalid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
         <Loader2 style={{ width: 32, height: 32 }} className="animate-spin text-[var(--accent)]" />
+        <p className="text-sm text-[var(--fg-muted)]">Doğrulanıyor...</p>
       </div>
     )
   }
 
-  if (validSession === false) {
+  // Geçersiz link
+  if (invalid) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
         <div className="text-center max-w-sm">
           <AlertCircle style={{ width: 48, height: 48 }} className="text-red-400 mx-auto mb-4" />
           <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Bağlantı Geçersiz</h1>
           <p className="text-[var(--fg-muted)] text-sm mb-6">
-            Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş. Yeniden dene.
+            Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.
           </p>
           <Link href="/forgot-password"
             className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white"
@@ -88,6 +140,7 @@ export default function ResetPasswordPage() {
     )
   }
 
+  // Tamamlandı
   if (done) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
@@ -96,16 +149,16 @@ export default function ResetPasswordPage() {
             <CheckCircle style={{ width: 32, height: 32 }} className="text-emerald-400" />
           </div>
           <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Şifre Güncellendi!</h1>
-          <p className="text-[var(--fg-muted)] text-sm">Yönlendiriliyorsun...</p>
+          <p className="text-[var(--fg-muted)] text-sm">Ana sayfaya yönlendiriliyorsun...</p>
         </div>
       </div>
     )
   }
 
+  // Şifre formu
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
       <div className="w-full max-w-md">
-
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2">
             <InkLogo size={32} />
@@ -130,8 +183,8 @@ export default function ResetPasswordPage() {
             <div className="relative">
               <input
                 type={showPw ? 'text' : 'password'} value={password}
-                onChange={e => setPassword(e.target.value)} required
-                placeholder="En az 6 karakter" minLength={6}
+                onChange={e => setPassword(e.target.value)}
+                required placeholder="En az 6 karakter" minLength={6}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
               />
               <button type="button" onClick={() => setShowPw(v => !v)}
@@ -145,8 +198,8 @@ export default function ResetPasswordPage() {
             <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">Şifre Tekrar</label>
             <input
               type={showPw ? 'text' : 'password'} value={confirm}
-              onChange={e => setConfirm(e.target.value)} required
-              placeholder="Şifreyi tekrar gir"
+              onChange={e => setConfirm(e.target.value)}
+              required placeholder="Şifreyi tekrar gir"
               className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
             />
           </div>
