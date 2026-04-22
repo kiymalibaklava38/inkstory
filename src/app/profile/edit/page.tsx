@@ -11,7 +11,7 @@ import { getCategoryBySlug } from '@/lib/categories'
 import { validateImageClient } from '@/lib/upload-security'
 
 export default function EditProfilePage() {
-  const [form, setForm] = useState({ display_name: '', username: '', bio: '', website: '' })
+  const [form, setForm] = useState({ display_name: '', username: '', bio: '', website: '', twitter_url: '', instagram_url: '' })
   const [emailPrefs, setEmailPrefs] = useState({
     email_new_chapter:  true,
     email_new_follower: true,
@@ -42,10 +42,12 @@ export default function EditProfilePage() {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       if (data) {
         setForm({
-          display_name: data.display_name || '',
-          username:     data.username || '',
-          bio:          data.bio || '',
-          website:      data.website || '',
+          display_name:  data.display_name  || '',
+          username:      data.username      || '',
+          bio:           data.bio           || '',
+          website:       data.website       || '',
+          twitter_url:   data.twitter_url   || '',
+          instagram_url: data.instagram_url || '',
         })
         setOriginalUsername(data.username)
         setCurrentAvatar(data.avatar_url)
@@ -121,10 +123,12 @@ export default function EditProfilePage() {
     }
 
     const { error: updateErr } = await supabase.from('profiles').update({
-      display_name:       form.display_name || null,
+      display_name:       form.display_name   || null,
       username:           form.username,
-      bio:                form.bio || null,
-      website:            form.website || null,
+      bio:                form.bio            || null,
+      website:            form.website        || null,
+      twitter_url:        form.twitter_url    || null,
+      instagram_url:      form.instagram_url  || null,
       avatar_url:         avatarUrl,
       banner_url:         bannerUrl,
       email_new_chapter:  emailPrefs.email_new_chapter,
@@ -277,6 +281,25 @@ export default function EditProfilePage() {
           <input type="url" value={form.website} onChange={set('website')}
             placeholder="https://yoursite.com"
             className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] transition-all" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">
+              𝕏 Twitter / X
+            </label>
+            <input type="text" value={form.twitter_url} onChange={set('twitter_url')}
+              placeholder="@kullaniciadi veya https://x.com/..."
+              className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] transition-all" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">
+              📸 Instagram
+            </label>
+            <input type="text" value={form.instagram_url} onChange={set('instagram_url')}
+              placeholder="@kullaniciadi veya https://instagram.com/..."
+              className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] transition-all" />
+          </div>
         </div>
 
         {error && (
