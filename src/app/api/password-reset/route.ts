@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   let email: string
@@ -11,44 +12,41 @@ export async function POST(req: NextRequest) {
   }
 
   if (!email || typeof email !== 'string' || !email.includes('@'))
-    return NextResponse.json({ error: 'Geçerli bir e-posta gir.' }, { status: 400 })
+    return NextResponse.json({ error: 'Geçerli bir e-posta adresi gir.' }, { status: 400 })
 
   email = email.trim().toLowerCase()
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
   const siteUrl     = process.env.NEXT_PUBLIC_SITE_URL || 'https://inkstory.com.tr'
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('[Password Reset] Supabase env eksik')
+  if (!supabaseUrl || !serviceKey) {
+    console.error('[Password Reset] ENV eksik — SUPABASE_SERVICE_ROLE_KEY veya URL')
     return NextResponse.json({ error: 'Sunucu yapılandırma hatası.' }, { status: 500 })
   }
 
   try {
-    // Supabase REST API'ye direkt HTTP isteği — hiç import gerektirmez
-    const res = await fetch(`${supabaseUrl}/auth/v1/recover`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': supabaseKey,
-      },
-      body: JSON.stringify({
-        email,
-        gotrue_meta_security: {},
-      }),
+    // Service role ile admin client — resetPasswordForEmail için gerekli
+    const supabase = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('[Password Reset] Supabase recover error:', res.status, err)
+    // SDK metodu — SMTP ayarını, rate limit'i, redirect'i doğru yönetir
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/callback?type=recovery`,
+    })
+
+    if (error) {
+      console.error('[Password Reset] Supabase error:', error.message, error.status)
+      // Güvenlik: email'in kayıtlı olup olmadığını dışarı sızdırma
+      return NextResponse.json({ success: true })
     }
 
-    // Güvenlik: hata olsa bile success döndür (e-posta var mı bilgisi verme)
-    console.log(`[Password Reset] ✅ Reset requested for: ${email}`)
+    console.log(`[Password Reset] ✅ Mail gönderildi: ${email}`)
     return NextResponse.json({ success: true })
 
   } catch (err: any) {
-    console.error('[Password Reset] Unexpected:', err?.message)
-    return NextResponse.json({ error: 'Hata oluştu.' }, { status: 500 })
+    console.error('[Password Reset] Hata:', err?.message)
+    return NextResponse.json({ error: 'Beklenmeyen hata oluştu.' }, { status: 500 })
   }
 }

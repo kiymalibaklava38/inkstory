@@ -7,85 +7,45 @@ import { InkLogo } from '@/components/ui/InkLogo'
 import { Loader2, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
+type State = 'loading' | 'ready' | 'invalid' | 'done'
+
 export default function ResetPasswordPage() {
+  const [state, setState]       = useState<State>('loading')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
-  const [done, setDone]         = useState(false)
   const [error, setError]       = useState('')
-  const [ready, setReady]       = useState(false)   // session hazır mı
-  const [invalid, setInvalid]   = useState(false)   // link geçersiz mi
   const router   = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    // Supabase URL hash'ten (#access_token=...) session'ı otomatik kurar.
-    // Biz sadece session'ın kurulmasını bekliyoruz.
+    // Supabase auth state change dinle
+    // auth/callback'ten geldiyse session zaten kurulu olacak (SIGNED_IN)
+    // Hash-based flow'da PASSWORD_RECOVERY fırlatır
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[ResetPassword] auth event:', event)
+      console.log('[ResetPassword] event:', event)
 
-      if (event === 'PASSWORD_RECOVERY') {
-        // Doğrudan recovery flow
-        setReady(true)
-        return
-      }
-
-      if (event === 'SIGNED_IN' && session) {
-        // Supabase bazen PASSWORD_RECOVERY yerine SIGNED_IN fırlatır
-        // URL'de type=recovery varsa ya da token_hash varsa recovery demek
-        const hash   = typeof window !== 'undefined' ? window.location.hash : ''
-        const search = typeof window !== 'undefined' ? window.location.search : ''
-        const isRecovery =
-          hash.includes('type=recovery') ||
-          search.includes('type=recovery') ||
-          hash.includes('access_token')  // hash varsa recovery linki
-
-        if (isRecovery) {
-          setReady(true)
-        }
-        return
-      }
-
-      if (event === 'INITIAL_SESSION') {
-        // Sayfa yenilendiğinde gelen event — session yoksa geçersiz
-        if (!session) {
-          // Kısa bekle, başka event gelebilir
-          setTimeout(() => {
-            setInvalid(v => !ready && v === false ? true : false)
-          }, 2000)
-        }
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        if (session) setState('ready')
       }
     })
 
-    // 5 saniye içinde ready olmazsa geçersiz say
+    // Zaten aktif session var mı? (callback'ten yönlendirildiyse)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setState('ready')
+      }
+    })
+
+    // 6 saniye içinde session gelmezse geçersiz
     const timeout = setTimeout(() => {
-      setReady(r => {
-        if (!r) setInvalid(true)
-        return r
-      })
-    }, 5000)
+      setState(s => s === 'loading' ? 'invalid' : s)
+    }, 6000)
 
     return () => {
       subscription.unsubscribe()
       clearTimeout(timeout)
-    }
-  }, [])
-
-  // URL hash'i hemen kontrol et — access_token varsa session gelecek
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const hash = window.location.hash
-    if (!hash.includes('access_token') && !hash.includes('type=recovery')) {
-      // Hash yok — zaten session var mı bak
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          setReady(true)
-        } else {
-          // Hash de yok session da yok → geçersiz link
-          setTimeout(() => setInvalid(true), 500)
-        }
-      })
     }
   }, [])
 
@@ -94,7 +54,7 @@ export default function ResetPasswordPage() {
     setError('')
 
     if (password.length < 6) { setError('Şifre en az 6 karakter olmalı.'); return }
-    if (password !== confirm)  { setError('Şifreler eşleşmiyor.'); return }
+    if (password !== confirm) { setError('Şifreler eşleşmiyor.'); return }
 
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
@@ -105,57 +65,48 @@ export default function ResetPasswordPage() {
       return
     }
 
-    setDone(true)
+    await supabase.auth.signOut()
+    setState('done')
     setLoading(false)
-    setTimeout(() => router.push('/'), 2500)
+    setTimeout(() => router.push('/login'), 2000)
   }
 
-  // Yükleniyor
-  if (!ready && !invalid) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
-        <Loader2 style={{ width: 32, height: 32 }} className="animate-spin text-[var(--accent)]" />
-        <p className="text-sm text-[var(--fg-muted)]">Doğrulanıyor...</p>
+  if (state === 'loading') return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[var(--bg)]">
+      <Loader2 style={{ width: 32, height: 32 }} className="animate-spin text-[var(--accent)]" />
+      <p className="text-sm text-[var(--fg-muted)]">Doğrulanıyor...</p>
+    </div>
+  )
+
+  if (state === 'invalid') return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
+      <div className="text-center max-w-sm">
+        <AlertCircle style={{ width: 48, height: 48 }} className="text-red-400 mx-auto mb-4" />
+        <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Bağlantı Geçersiz</h1>
+        <p className="text-[var(--fg-muted)] text-sm mb-6">
+          Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.
+        </p>
+        <Link href="/forgot-password"
+          className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white"
+          style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+          Yeniden Gönder
+        </Link>
       </div>
-    )
-  }
+    </div>
+  )
 
-  // Geçersiz link
-  if (invalid) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
-        <div className="text-center max-w-sm">
-          <AlertCircle style={{ width: 48, height: 48 }} className="text-red-400 mx-auto mb-4" />
-          <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Bağlantı Geçersiz</h1>
-          <p className="text-[var(--fg-muted)] text-sm mb-6">
-            Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.
-          </p>
-          <Link href="/forgot-password"
-            className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white"
-            style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
-            Yeniden Gönder
-          </Link>
+  if (state === 'done') return (
+    <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
+      <div className="text-center">
+        <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
+          <CheckCircle style={{ width: 32, height: 32 }} className="text-emerald-400" />
         </div>
+        <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Şifre Güncellendi!</h1>
+        <p className="text-[var(--fg-muted)] text-sm">Giriş sayfasına yönlendiriliyorsun...</p>
       </div>
-    )
-  }
+    </div>
+  )
 
-  // Tamamlandı
-  if (done) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
-        <div className="text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle style={{ width: 32, height: 32 }} className="text-emerald-400" />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-[var(--fg)] mb-2">Şifre Güncellendi!</h1>
-          <p className="text-[var(--fg-muted)] text-sm">Ana sayfaya yönlendiriliyorsun...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Şifre formu
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--bg)]">
       <div className="w-full max-w-md">
@@ -167,8 +118,8 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-[var(--fg)]">Yeni Şifre</h1>
-          <p className="text-[var(--fg-muted)] mt-1 text-sm">Hesabın için yeni bir şifre belirle.</p>
+          <h1 className="font-display text-3xl font-bold text-[var(--fg)]">Yeni Şifre Belirle</h1>
+          <p className="text-[var(--fg-muted)] mt-1 text-sm">Hesabın için güçlü bir şifre seç.</p>
         </div>
 
         {error && (
@@ -182,8 +133,8 @@ export default function ResetPasswordPage() {
             <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">Yeni Şifre</label>
             <div className="relative">
               <input
-                type={showPw ? 'text' : 'password'} value={password}
-                onChange={e => setPassword(e.target.value)}
+                type={showPw ? 'text' : 'password'}
+                value={password} onChange={e => setPassword(e.target.value)}
                 required placeholder="En az 6 karakter" minLength={6}
                 className="w-full px-4 py-3 pr-12 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
               />
@@ -197,8 +148,8 @@ export default function ResetPasswordPage() {
           <div>
             <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">Şifre Tekrar</label>
             <input
-              type={showPw ? 'text' : 'password'} value={confirm}
-              onChange={e => setConfirm(e.target.value)}
+              type={showPw ? 'text' : 'password'}
+              value={confirm} onChange={e => setConfirm(e.target.value)}
               required placeholder="Şifreyi tekrar gir"
               className="w-full px-4 py-3 rounded-xl border border-[var(--border)] bg-[var(--card)] text-[var(--fg)] placeholder-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10 transition-all"
             />
