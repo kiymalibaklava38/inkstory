@@ -7,16 +7,23 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // ── 1. Rate limiting ───────────────────────────────────
-  // Auth endpoints — strict limit to prevent brute-force
-  if (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname === '/auth/callback') {
-    const limited = await checkRateLimit(request, authLimiter)
-    if (limited) return limited
-  }
+  // RSC prefetch isteklerini muaf tut (?_rsc= veya rsc:1 header)
+  const isRSCPrefetch = request.nextUrl.searchParams.has('_rsc') ||
+    request.headers.get('rsc') === '1'
 
-  // API routes — general limit
-  if (pathname.startsWith('/api/')) {
-    const limited = await checkRateLimit(request, apiLimiter)
-    if (limited) return limited
+  if (!isRSCPrefetch) {
+    // Auth sayfaları — sadece POST isteklerine limit uygula
+    if (request.method === 'POST' &&
+      (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname === '/auth/callback')) {
+      const limited = await checkRateLimit(request, authLimiter)
+      if (limited) return limited
+    }
+
+    // API routes — genel limit
+    if (pathname.startsWith('/api/')) {
+      const limited = await checkRateLimit(request, apiLimiter)
+      if (limited) return limited
+    }
   }
 
   // ── 2. Block suspicious requests ──────────────────────
