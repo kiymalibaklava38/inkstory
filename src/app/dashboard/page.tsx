@@ -17,9 +17,22 @@ import { tr as dateFnsTr } from 'date-fns/locale'
 // ── Basit çizgi grafiği ──────────────────────────────────
 function MiniChart({ data }: { data: { date: string; reads: number }[] }) {
   if (!data?.length) return null
+
   const max = Math.max(...data.map(d => d.reads), 1)
+  const hasData = data.some(d => d.reads > 0)
+
+  if (!hasData) {
+    return (
+      <div className="h-14 flex items-center justify-center">
+        <p className="text-xs text-[var(--fg-muted)]">
+          Bu dönemde henüz okuma yok.
+        </p>
+      </div>
+    )
+  }
+
   const pts = data.map((d, i) => {
-    const x = (i / (data.length - 1)) * 280
+    const x = data.length > 1 ? (i / (data.length - 1)) * 280 : 140
     const y = 50 - (d.reads / max) * 45
     return `${x},${y}`
   }).join(' ')
@@ -33,8 +46,17 @@ function MiniChart({ data }: { data: { date: string; reads: number }[] }) {
             <stop offset="100%" stopColor="#d4840f" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <polyline fill="none" stroke="#d4840f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={pts} />
-        <polygon fill="url(#chartGrad)" points={`0,55 ${pts} 280,55`} />
+        <polyline fill="none" stroke="#d4840f" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" points={pts} />
+        <polygon fill="url(#chartGrad)"
+          points={`0,55 ${pts} 280,55`} />
+        {/* Max nokta göster */}
+        {data.map((d, i) => d.reads === max && max > 0 ? (
+          <circle key={i}
+            cx={data.length > 1 ? (i / (data.length - 1)) * 280 : 140}
+            cy={50 - (d.reads / max) * 45}
+            r="3" fill="#d4840f" />
+        ) : null)}
       </svg>
     </div>
   )

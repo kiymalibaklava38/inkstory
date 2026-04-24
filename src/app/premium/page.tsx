@@ -58,41 +58,43 @@ export default function PremiumPage() {
   const [userId, setUserId]             = useState<string | null>(null)
   const [loading, setLoading]           = useState(false)
   const [success, setSuccess]           = useState(false)
+  // IP'den tespit edilen konum — dil seçiminden bağımsız
+  const [isTurkey, setIsTurkey]         = useState<boolean | null>(null)
+  const [geoLoading, setGeoLoading]     = useState(true)
 
   useEffect(() => {
-    // Başarılı ödeme sonrası
     if (typeof window !== 'undefined' && window.location.search.includes('success=1')) {
       setSuccess(true)
     }
 
-    // Paddle.js'i yükle
+    // Paddle.js yükle
     const loadPaddle = () => {
-      if ((window as any).Paddle) {
-        initPaddle()
-        return
-      }
+      if ((window as any).Paddle) { initPaddle(); return }
       const script = document.createElement('script')
       script.src = 'https://cdn.paddle.com/paddle/v2/paddle.js'
       script.async = true
       script.onload = initPaddle
       document.head.appendChild(script)
     }
-
     const initPaddle = () => {
       const Paddle = (window as any).Paddle
       if (!Paddle) return
       const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN
-      if (token) {
-        Paddle.Setup({ token })
-      }
-      // _ptxn parametresi varsa overlay checkout'u aç
+      if (token) Paddle.Setup({ token })
       const ptxn = new URLSearchParams(window.location.search).get('_ptxn')
-      if (ptxn) {
-        Paddle.Checkout.open({ transactionId: ptxn })
-      }
+      if (ptxn) Paddle.Checkout.open({ transactionId: ptxn })
     }
-
     loadPaddle()
+
+    // IP'den konum tespiti — sunucu tarafında yapılır, manipüle edilemez
+    fetch('/api/geo')
+      .then(r => r.json())
+      .then(d => {
+        setIsTurkey(d.isTurkey === true)
+        console.log(`[Premium] Geo: country=${d.country} isTurkey=${d.isTurkey}`)
+      })
+      .catch(() => setIsTurkey(false))  // hata durumunda USD göster
+      .finally(() => setGeoLoading(false))
 
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -110,6 +112,8 @@ export default function PremiumPage() {
     if (!userId) { router.push('/login?redirect=/premium'); return }
     setLoading(true)
     try {
+      // Sadece plan tipi gönder (monthly/yearly)
+      // Ülke tespiti sunucu tarafında IP'den yapılır
       const res = await fetch('/api/paddle/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -119,33 +123,30 @@ export default function PremiumPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert(lang === 'tr' ? 'Ödeme sayfası açılamadı. Lütfen tekrar dene.' : 'Could not open checkout. Please try again.')
+        alert(data.error || (lang === 'tr' ? 'Ödeme sayfası açılamadı.' : 'Could not open checkout.'))
       }
     } catch {
-      alert(lang === 'tr' ? 'Bir hata oluştu.' : 'An error occurred.')
+      alert(lang === 'tr' ? 'Bağlantı hatası.' : 'Connection error.')
     }
     setLoading(false)
   }
 
   const features = [
-    { label: lang === 'tr' ? 'Günlük AI İsteği' : 'Daily AI Requests', free: lang === 'tr' ? '5 istek/gün' : '5/day', premium: lang === 'tr' ? 'Sınırsız' : 'Unlimited', freeOk: true },
-    { label: lang === 'tr' ? 'Temel AI Aksiyonları' : 'Basic AI Actions', free: lang === 'tr' ? '3 aksiyon' : '3 actions', premium: lang === 'tr' ? '8 aksiyon' : '8 actions', freeOk: true },
-    { label: lang === 'tr' ? 'Denetle & Hata Bul' : 'Proofread & Debug', free: '—', premium: lang === 'tr' ? 'Dahil' : 'Included', freeOk: false },
-    { label: lang === 'tr' ? 'Diyalog & Betimleme' : 'Dialogue & Description', free: '—', premium: lang === 'tr' ? 'Dahil' : 'Included', freeOk: false },
-    { label: lang === 'tr' ? 'Olay Örgüsü & Bölüm Önerisi' : 'Plot & Chapter Suggest', free: '—', premium: lang === 'tr' ? 'Dahil' : 'Included', freeOk: false },
-    { label: lang === 'tr' ? 'Premium Rozeti' : 'Premium Badge', free: '—', premium: lang === 'tr' ? 'Profilde görünür' : 'Shown on profile', freeOk: false },
-    { label: lang === 'tr' ? 'Keşfet\'te Öne Çıkma' : 'Featured in Discover', free: '—', premium: lang === 'tr' ? 'Öncelikli sıralama' : 'Priority ranking', freeOk: false },
-    { label: lang === 'tr' ? 'Kapak & Banner' : 'Cover & Banner', free: lang === 'tr' ? 'Dahil' : 'Included', premium: lang === 'tr' ? 'Dahil' : 'Included', freeOk: true },
-    { label: lang === 'tr' ? 'Öncelikli Destek' : 'Priority Support', free: '—', premium: lang === 'tr' ? 'Discord / E-posta' : 'Discord / Email', freeOk: false },
+    { label: lang === 'tr' ? 'Günlük AI İsteği'          : 'Daily AI Requests',      free: lang === 'tr' ? '5 istek/gün'   : '5/day',        premium: lang === 'tr' ? 'Sınırsız'          : 'Unlimited',          freeOk: true  },
+    { label: lang === 'tr' ? 'Temel AI Aksiyonları'       : 'Basic AI Actions',       free: lang === 'tr' ? '3 aksiyon'     : '3 actions',    premium: lang === 'tr' ? '8 aksiyon'         : '8 actions',          freeOk: true  },
+    { label: lang === 'tr' ? 'Denetle & Hata Bul'         : 'Proofread & Debug',      free: '—',                                               premium: lang === 'tr' ? 'Dahil'             : 'Included',           freeOk: false },
+    { label: lang === 'tr' ? 'Diyalog & Betimleme'        : 'Dialogue & Description', free: '—',                                               premium: lang === 'tr' ? 'Dahil'             : 'Included',           freeOk: false },
+    { label: lang === 'tr' ? 'Olay Örgüsü & Bölüm Önerisi': 'Plot & Chapter Suggest', free: '—',                                              premium: lang === 'tr' ? 'Dahil'             : 'Included',           freeOk: false },
+    { label: lang === 'tr' ? 'Premium Rozeti'              : 'Premium Badge',          free: '—',                                               premium: lang === 'tr' ? 'Profilde görünür'  : 'Shown on profile',   freeOk: false },
+    { label: lang === 'tr' ? 'Keşfet\'te Öne Çıkma'       : 'Featured in Discover',   free: '—',                                               premium: lang === 'tr' ? 'Öncelikli sıralama': 'Priority ranking',   freeOk: false },
+    { label: lang === 'tr' ? 'Kapak & Banner'              : 'Cover & Banner',         free: lang === 'tr' ? 'Dahil' : 'Included',              premium: lang === 'tr' ? 'Dahil'             : 'Included',           freeOk: true  },
+    { label: lang === 'tr' ? 'Öncelikli Destek'            : 'Priority Support',       free: '—',                                               premium: lang === 'tr' ? 'Discord / E-posta' : 'Discord / Email',    freeOk: false },
   ]
 
-  // Fiyatlar — dil/bölgeye göre
-  const prices = {
-    monthly: lang === 'tr' ? '₺99' : '$2.99',
-    yearly:  lang === 'tr' ? '₺799' : '$19.99',
-    yearlyMonthly: lang === 'tr' ? '₺66/ay' : '$1.67/mo',
-    saving:  lang === 'tr' ? '%33 tasarruf' : '44% off',
-  }
+  // Fiyatlar — IP'den tespit edilen ülkeye göre (dil seçiminden BAĞIMSIZ)
+  const prices = isTurkey
+    ? { monthly: '₺99', yearly: '₺799', yearlyMonthly: '₺66/ay', saving: '%33 tasarruf', currency: 'TRY' }
+    : { monthly: '$2.99', yearly: '$19.99', yearlyMonthly: '$1.67/mo', saving: '44% off', currency: 'USD' }
 
   return (
     <div className="min-h-screen bg-[var(--bg)] pb-20">
@@ -206,7 +207,9 @@ export default function PremiumPage() {
               </div>
               <p className="text-[var(--fg-muted)] text-sm mb-4">{lang === 'tr' ? 'Başlamak için ihtiyacın olan her şey.' : 'Everything you need to get started.'}</p>
               <div className="flex items-baseline gap-1">
-                <span className="font-display text-4xl font-bold text-[var(--fg)]">₺0</span>
+                <span className="font-display text-4xl font-bold text-[var(--fg)]">
+                  {isTurkey ? '₺0' : '$0'}
+                </span>
                 <span className="text-[var(--fg-muted)] text-sm">/ {lang === 'tr' ? 'sonsuza dek' : 'forever'}</span>
               </div>
             </div>
@@ -264,14 +267,18 @@ export default function PremiumPage() {
                 {lang === 'tr' ? 'Profesyonel yazarlar için tam deneyim.' : 'The full experience for serious writers.'}
               </p>
               <div className="flex items-baseline gap-2">
-                <span className="font-display text-4xl font-bold text-[var(--fg)]">
-                  {selectedPlan === 'monthly' ? prices.monthly : prices.yearly}
-                </span>
+                {geoLoading ? (
+                  <div className="h-10 w-28 bg-[var(--bg-subtle)] rounded-xl animate-pulse" />
+                ) : (
+                  <span className="font-display text-4xl font-bold text-[var(--fg)]">
+                    {selectedPlan === 'monthly' ? prices.monthly : prices.yearly}
+                  </span>
+                )}
                 <span className="text-[var(--fg-muted)] text-sm">
                   {selectedPlan === 'monthly' ? (lang === 'tr' ? '/ ay' : '/ month') : (lang === 'tr' ? '/ yıl' : '/ year')}
                 </span>
               </div>
-              {selectedPlan === 'yearly' && (
+              {selectedPlan === 'yearly' && !geoLoading && (
                 <p className="text-xs text-emerald-400 mt-1 font-medium">
                   ≈ {prices.yearlyMonthly} — {lang === 'tr' ? 'aylık ödemekten daha ucuz' : 'cheaper than monthly'}
                 </p>
@@ -290,14 +297,27 @@ export default function PremiumPage() {
                   <Check style={{ width: 15, height: 15 }} /> {lang === 'tr' ? 'Premium Üyesin 🎉' : 'You are Premium 🎉'}
                 </div>
               ) : (
-                <button onClick={handleCheckout} disabled={loading}
-                  className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] mb-6 disabled:opacity-70 flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
-                  {loading
-                    ? <><Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> {lang === 'tr' ? 'Yükleniyor...' : 'Loading...'}</>
-                    : <>{lang === 'tr' ? '🔒 Güvenli Ödemeye Geç' : '🔒 Proceed to Secure Checkout'}</>
-                  }
-                </button>
+                <>
+                  <button onClick={handleCheckout} disabled={loading || geoLoading}
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] mb-2 disabled:opacity-70 flex items-center justify-center gap-2"
+                    style={{ background: 'linear-gradient(135deg,#d4840f,#e8a030)' }}>
+                    {loading
+                      ? <><Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> {lang === 'tr' ? 'Yükleniyor...' : 'Loading...'}</>
+                      : geoLoading
+                        ? <><Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> {lang === 'tr' ? 'Konum tespit ediliyor...' : 'Detecting location...'}</>
+                        : <>{lang === 'tr' ? '🔒 Güvenli Ödemeye Geç' : '🔒 Proceed to Secure Checkout'}</>
+                    }
+                  </button>
+                  {/* Para birimi bilgisi — IP'den tespit edilen ülkeye göre */}
+                  {!geoLoading && (
+                    <p className="text-center text-[10px] text-[var(--fg-muted)] mb-5">
+                      {isTurkey
+                        ? '🇹🇷 Türkiye konumun tespit edildi — ₺ TL fiyatlandırması uygulanıyor'
+                        : `🌍 ${lang === 'tr' ? 'Uluslararası fiyatlandırma uygulanıyor — USD' : 'International pricing applied — USD'}`
+                      }
+                    </p>
+                  )}
+                </>
               )}
 
               <div className="space-y-3">
