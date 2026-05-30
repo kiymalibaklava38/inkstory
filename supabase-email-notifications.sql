@@ -36,4 +36,10 @@ CREATE TABLE IF NOT EXISTS public.email_logs (
   sent_at      timestamptz DEFAULT now()
 );
 
+ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "email_logs_admin_all" ON public.email_logs;
+CREATE POLICY "email_logs_admin_all" ON public.email_logs FOR ALL
+USING (public.is_admin());
+
 CREATE INDEX IF NOT EXISTS email_logs_user_type ON public.email_logs(user_id, type, sent_at);

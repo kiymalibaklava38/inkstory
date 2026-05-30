@@ -38,6 +38,12 @@ function LoginFormContent() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-xl">
+          {error}
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-[var(--fg)] mb-1.5">{t.email}</label>
         <input

@@ -42,6 +42,7 @@ function NewChapterForm() {
       Placeholder.configure({ placeholder: lang === 'tr' ? 'Bölümün burada başlıyor...' : 'Your chapter begins here...' }),
     ],
     editorProps: { attributes: { class: 'ProseMirror' } },
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       setWordCount(editor.getText().split(/\s+/).filter(Boolean).length)
       isDirty.current = true

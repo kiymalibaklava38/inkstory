@@ -28,6 +28,7 @@ function EditChapterForm() {
   const [autoSaveTime, setAutoSaveTime]     = useState<string | null>(null)
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null)
   const isDirty = useRef(false)
+  const [draftToRestore, setDraftToRestore] = useState<{ baslik: string, icerik: string, saved_at: string } | null>(null)
 
   const router       = useRouter()
   const searchParams = useSearchParams()
@@ -41,6 +42,7 @@ function EditChapterForm() {
       Placeholder.configure({ placeholder: lang === 'tr' ? 'Bölüm içeriği...' : 'Your chapter content...' }),
     ],
     editorProps: { attributes: { class: 'ProseMirror' } },
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       setWordCount(editor.getText().split(/\s+/).filter(Boolean).length)
       isDirty.current = true
@@ -100,6 +102,24 @@ function EditChapterForm() {
       editor.commands.setContent(data.icerik || '')
       setWordCount(data.kelime_sayisi || 0)
       setStorySlug((data.hikayeler as any)?.slug || '')
+
+      // Bulut taslak kontrolü
+      try {
+        const draftRes = await fetch(`/api/autosave?bolumId=${chapterId}`)
+        if (draftRes.ok) {
+          const { draft } = await draftRes.json()
+          if (draft && draft.icerik && new Date(draft.saved_at) > new Date(data.updated_at || data.created_at)) {
+            setDraftToRestore({
+              baslik: draft.baslik || data.baslik,
+              icerik: draft.icerik,
+              saved_at: draft.saved_at
+            })
+          }
+        }
+      } catch (err) {
+        console.error('[Chapter Edit] Failed to check for draft:', err)
+      }
+
       setLoading(false)
     }
     init()
@@ -212,6 +232,43 @@ function EditChapterForm() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className={`grid gap-8 ${showAI ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
           <div className={showAI ? 'lg:col-span-2' : ''}>
+
+            {/* Draft Restore Alert */}
+            {draftToRestore && (
+              <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="text-sm text-[var(--fg)]">
+                  <span className="font-semibold text-amber-500 mr-1">⚠️ {lang === 'tr' ? 'Kurtarılabilir Taslak Var:' : 'Unsaved Draft Available:'}</span>
+                  {lang === 'tr' 
+                    ? `Bu bölümün bulutta daha yeni bir otomatik kayıt sürümü bulundu (${new Date(draftToRestore.saved_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}).`
+                    : `A newer autosaved version of this chapter was found in the cloud.`
+                  }
+                </div>
+                <div className="flex gap-2 flex-shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={async () => {
+                      setTitle(draftToRestore.baslik)
+                      editor?.commands.setContent(draftToRestore.icerik)
+                      setDraftToRestore(null)
+                      isDirty.current = true
+                      // Taslağı başarıyla geri yükledikten sonra buluttan silelim ki tekrar sormasın
+                      await fetch(`/api/autosave?bolumId=${chapterId}`, { method: 'DELETE' }).catch(() => {})
+                    }}
+                    className="px-3 py-1.5 bg-amber-500 text-black font-semibold text-xs rounded-xl hover:scale-105 transition-all"
+                  >
+                    {lang === 'tr' ? 'Kurtar' : 'Restore'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setDraftToRestore(null)
+                      await fetch(`/api/autosave?bolumId=${chapterId}`, { method: 'DELETE' }).catch(() => {})
+                    }}
+                    className="px-3 py-1.5 border border-[var(--border)] text-[var(--fg-muted)] hover:text-[var(--fg)] text-xs rounded-xl transition-all"
+                  >
+                    {lang === 'tr' ? 'Yoksay' : 'Ignore'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Title input */}
             <input

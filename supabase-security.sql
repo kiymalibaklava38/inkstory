@@ -337,31 +337,45 @@ CREATE POLICY "avatarlar_delete_own"
     (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- KAPAKLAR bucket (covers are keyed by story ID, not user ID)
+-- KAPAKLAR bucket (covers are keyed by story ID, and secured by story owner check)
 CREATE POLICY "kapaklar_select_public"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'kapaklar');
 
-CREATE POLICY "kapaklar_insert_auth"
+CREATE POLICY "kapaklar_insert_own"
   ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'kapaklar' AND
-    auth.role() = 'authenticated'
-    -- Additional story ownership verified in the API route
+    auth.role() = 'authenticated' AND
+    EXISTS (
+      SELECT 1 FROM public.hikayeler h
+      WHERE h.id::text = (storage.foldername(name))[1]
+        AND h.yazar_id = auth.uid()
+    )
   );
 
-CREATE POLICY "kapaklar_update_auth"
+CREATE POLICY "kapaklar_update_own"
   ON storage.objects FOR UPDATE
   USING (
     bucket_id = 'kapaklar' AND
-    auth.role() = 'authenticated'
+    auth.role() = 'authenticated' AND
+    EXISTS (
+      SELECT 1 FROM public.hikayeler h
+      WHERE h.id::text = (storage.foldername(name))[1]
+        AND h.yazar_id = auth.uid()
+    )
   );
 
-CREATE POLICY "kapaklar_delete_auth"
+CREATE POLICY "kapaklar_delete_own"
   ON storage.objects FOR DELETE
   USING (
     bucket_id = 'kapaklar' AND
-    auth.role() = 'authenticated'
+    auth.role() = 'authenticated' AND
+    EXISTS (
+      SELECT 1 FROM public.hikayeler h
+      WHERE h.id::text = (storage.foldername(name))[1]
+        AND h.yazar_id = auth.uid()
+    )
   );
 
 -- ============================================================

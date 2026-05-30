@@ -173,6 +173,25 @@ CREATE POLICY "bolumler_update_own"  ON public.bolumler FOR UPDATE  USING (auth.
 CREATE POLICY "bolumler_delete_own"  ON public.bolumler FOR DELETE  USING (auth.uid() = yazar_id);
 
 -- ============================================================
+-- BÖLÜM TASLAKLARI
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.bolum_taslaklar (
+  bolum_id   uuid         REFERENCES public.bolumler(id) ON DELETE CASCADE PRIMARY KEY,
+  yazar_id   uuid         REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  baslik     text         NOT NULL,
+  icerik     text         NOT NULL DEFAULT '',
+  saved_at   timestamptz  DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.bolum_taslaklar ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "bolum_taslaklar_all_own" ON public.bolum_taslaklar;
+CREATE POLICY "bolum_taslaklar_all_own"
+  ON public.bolum_taslaklar FOR ALL
+  USING (auth.uid() = yazar_id)
+  WITH CHECK (auth.uid() = yazar_id);
+
+-- ============================================================
 -- YORUMLAR
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.yorumlar (

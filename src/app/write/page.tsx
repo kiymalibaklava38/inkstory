@@ -42,6 +42,7 @@ export default function WritePage() {
       Placeholder.configure({ placeholder: lang === 'tr' ? 'Hikayene buradan başla...' : 'Your story begins here...' }),
     ],
     editorProps: { attributes: { class: 'ProseMirror' } },
+    immediatelyRender: false,
     onUpdate: ({ editor }) => setWordCount(editor.getText().split(/\s+/).filter(Boolean).length),
   })
 

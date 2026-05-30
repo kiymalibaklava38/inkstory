@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit, commentLimiter } from '@/lib/ratelimit'
 import { requireAuth } from '@/lib/auth-helpers'
 import { createClient } from '@/lib/supabase/server'
-
-// Basit XSS koruması — script taglerini temizle ama normal metni bozmaz
-function sanitizeComment(text: string): string {
-  return text
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<[^>]+>/g, '')   // tüm HTML taglerini kaldır
-    .trim()
-}
+import { stripHtml } from '@/lib/sanitize'
 
 export async function POST(req: NextRequest) {
   const limited = await checkRateLimit(req, commentLimiter)
@@ -22,7 +15,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 }) }
 
-  const { storyId, content, parentId, chapterId } = body as any
+  const { storyId, content, parentId, chapterId, paragraphIndex } = body as any
 
   // Manuel validasyon — Zod schema bypass sorunlarını önler
   if (!storyId || typeof storyId !== 'string' || !/^[0-9a-f-]{36}$/.test(storyId))
@@ -37,7 +30,10 @@ export async function POST(req: NextRequest) {
   if (parentId && (typeof parentId !== 'string' || !/^[0-9a-f-]{36}$/.test(parentId)))
     return NextResponse.json({ error: 'Geçersiz parent ID.' }, { status: 400 })
 
-  const safeContent = sanitizeComment(content)
+  if (paragraphIndex !== undefined && (typeof paragraphIndex !== 'number' || paragraphIndex < 0))
+    return NextResponse.json({ error: 'Geçersiz satır indeksi.' }, { status: 400 })
+
+  const safeContent = stripHtml(content)
 
   if (!safeContent)
     return NextResponse.json({ error: 'Yorum boş olamaz.' }, { status: 400 })
@@ -73,13 +69,14 @@ export async function POST(req: NextRequest) {
   const { data: inserted, error: insertErr } = await supabase
     .from('yorumlar')
     .insert({
-      hikaye_id:    storyId,
-      bolum_id:     chapterId ?? null,
-      yazar_id:     user.id,
-      icerik:       safeContent,
-      ust_yorum_id: parentId ?? null,
+      hikaye_id:       storyId,
+      bolum_id:        chapterId ?? null,
+      yazar_id:        user.id,
+      icerik:          safeContent,
+      ust_yorum_id:    parentId ?? null,
+      paragraph_index: paragraphIndex !== undefined ? paragraphIndex : null,
     })
-    .select('id, icerik, created_at, yazar_id, ust_yorum_id')
+    .select('id, icerik, created_at, yazar_id, ust_yorum_id, paragraph_index')
     .single()
 
   if (insertErr) {

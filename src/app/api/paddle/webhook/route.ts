@@ -59,9 +59,9 @@ async function verifyPaddleSignature(req: NextRequest, body: string): Promise<bo
   return timingSafeEqualHex(expected, h1)
 }
 
-function addPlanDuration(fromDate: Date, plan: 'monthly' | 'yearly') {
+function addPlanDuration(fromDate: Date, plan: string) {
   const next = new Date(fromDate)
-  if (plan === 'yearly') {
+  if (plan.startsWith('yearly')) {
     next.setFullYear(next.getFullYear() + 1)
   } else {
     next.setMonth(next.getMonth() + 1)

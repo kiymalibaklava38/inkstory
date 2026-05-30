@@ -57,17 +57,23 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient()
 
     // Yeni gün ise sayacı sıfırla
-    await supabase.rpc('reset_ai_calls_if_needed', { p_user_id: user.id })
+    const { error: resetError } = await supabase.rpc('reset_ai_calls_if_needed', { p_user_id: user.id })
+    if (resetError) {
+      console.error('[AI Route] reset_ai_calls_if_needed RPC Error:', resetError.message, resetError)
+    }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_premium, premium_expires_at, ai_calls_today')
       .eq('id', user.id)
       .single()
 
-    const isPremium = profile?.is_premium &&
-      profile?.premium_expires_at &&
-      new Date(profile.premium_expires_at) > new Date()
+    if (profileError) {
+      console.error('[AI Route] Profiles fetch Error:', profileError.message, profileError)
+    }
+
+    const isPremium = !!profile?.is_premium &&
+      (!profile?.premium_expires_at || new Date(profile.premium_expires_at) > new Date())
 
     const FREE_LIMIT = 5
     const callsToday = profile?.ai_calls_today || 0
@@ -96,7 +102,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Sayacı artır
-    await supabase.rpc('increment_ai_calls', { p_user_id: user.id })
+    const { error: incError } = await supabase.rpc('increment_ai_calls', { p_user_id: user.id })
+    if (incError) {
+      console.error('[AI Route] increment_ai_calls RPC Error:', incError.message, incError)
+    }
   }
 
   // ── 4. Parse & validate request body ───────────────────
@@ -158,13 +167,37 @@ export async function POST(req: NextRequest) {
       const errText = await anthropicRes.text().catch(() => '')
       console.error(`[AI Route] Anthropic error ${anthropicRes.status} for user ${user.id}:`, errText.slice(0, 200))
 
+      let errorMessage = 'Yapay zeka servisi geçici olarak yanıt vermiyor.'
+      let errorDetail = ''
+      try {
+        const parsed = JSON.parse(errText)
+        if (parsed?.error?.message) {
+          errorDetail = parsed.error.message
+        }
+      } catch {}
+
       if (anthropicRes.status === 401) {
-        return NextResponse.json({ error: 'AI service authentication failed.' }, { status: 503 })
+        errorMessage = 'Yapay zeka servisi kimlik doğrulaması başarısız oldu (API anahtarı geçersiz).'
+        return NextResponse.json({ error: errorMessage }, { status: 503 })
+      }
+      if (anthropicRes.status === 403) {
+        errorMessage = 'Yapay zeka servisine erişim engellendi.'
+        return NextResponse.json({ error: errorMessage, detail: errorDetail }, { status: 403 })
+      }
+      if (anthropicRes.status === 404) {
+        errorMessage = 'Talep edilen yapay zeka modeli bulunamadı veya şu anda aktif değil.'
+        return NextResponse.json({ error: errorMessage, detail: errorDetail }, { status: 404 })
       }
       if (anthropicRes.status === 429) {
-        return NextResponse.json({ error: 'AI service is busy. Please try again shortly.' }, { status: 429 })
+        errorMessage = 'Yapay zeka servisi şu anda yoğun. Lütfen birkaç saniye sonra tekrar deneyin.'
+        return NextResponse.json({ error: errorMessage }, { status: 429 })
       }
-      return NextResponse.json({ error: 'AI service returned an unexpected error.' }, { status: 502 })
+
+      errorMessage = 'Yapay zeka servisi bir hata döndürdü.'
+      return NextResponse.json({
+        error: errorMessage,
+        detail: errorDetail || `Status: ${anthropicRes.status}`
+      }, { status: anthropicRes.status >= 400 && anthropicRes.status < 600 ? anthropicRes.status : 502 })
     }
 
     const responseData = await anthropicRes.json()
@@ -181,11 +214,16 @@ export async function POST(req: NextRequest) {
     // Log AI usage (non-blocking)
     try {
       const supabase = await (await import('@/lib/supabase/server')).createClient()
-      await supabase.from('ai_usage_logs').insert({
+      const { error: logError } = await supabase.from('ai_usage_logs').insert({
         user_id: user.id,
         action,
       })
-    } catch { /* non-critical */ }
+      if (logError) {
+        console.error('[AI Route] ai_usage_logs insert DB Error:', logError.message, logError)
+      }
+    } catch (err: any) {
+      console.error('[AI Route] ai_usage_logs insert Unexpected Error:', err?.message)
+    }
 
     return NextResponse.json({ suggestion })
 

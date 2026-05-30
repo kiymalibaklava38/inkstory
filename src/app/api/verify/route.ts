@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
     supabase.from('takip').select('*', { count: 'exact', head: true }).eq('takip_edilen_id', user.id),
     supabase.from('bolumler').select('*', { count: 'exact', head: true }).eq('yazar_id', user.id).eq('yayinda', true),
     supabase.from('hikayeler').select('goruntuleme').eq('yazar_id', user.id).in('durum', ['yayinda','tamamlandi']),
-    supabase.from('verification_applications').select('*').eq('user_id', user.id).single(),
-    supabase.from('profiles').select('is_verified,verification_badge').eq('id', user.id).single(),
+    supabase.from('verification_applications').select('*').eq('user_id', user.id).maybeSingle(),
+    supabase.from('profiles').select('is_verified,verification_badge').eq('id', user.id).maybeSingle(),
   ])
 
   const totalReads = (storyData || []).reduce((sum, s) => sum + (s.goruntuleme || 0), 0)
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     .from('verification_applications')
     .select('id, status')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (existing?.status === 'pending') {
     return NextResponse.json({ error: 'Zaten bekleyen bir başvurun var.' }, { status: 409 })

@@ -45,50 +45,103 @@ export async function POST(req: NextRequest) {
     )
 
     const authorName = (hikaye.profiles as any)?.display_name || (hikaye.profiles as any)?.username
+
+    const userIds = aboneler
+      .map(a => a.user_id)
+      .filter(id => id !== user.id)
+
+    if (userIds.length === 0) {
+      return NextResponse.json({ sent: 0, reason: 'no_other_subscribers' })
+    }
+
+    // 1. Batch fetch profiles with email_new_chapter !== false in one query!
+    const { data: profiles, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, display_name, username, email_new_chapter')
+      .in('id', userIds)
+
+    if (profileErr) {
+      console.error('[Email] Batch profiles error:', profileErr.message)
+      return NextResponse.json({ error: 'Profiles query failed' }, { status: 500 })
+    }
+
+    // Filter profiles who want emails
+    const activeProfiles = (profiles || []).filter(p => p.email_new_chapter !== false)
+    if (activeProfiles.length === 0) {
+      return NextResponse.json({ sent: 0, reason: 'no_active_subscribers' })
+    }
+
+    const activeUserIds = activeProfiles.map(p => p.id)
+
+    // 2. Batch fetch email logs for new_chapter type & bolumId to prevent duplicate sends!
+    const { data: sentLogs, error: logErr } = await supabase
+      .from('email_logs')
+      .select('user_id')
+      .in('user_id', activeUserIds)
+      .eq('type', 'new_chapter')
+      .eq('ref_id', bolumId)
+
+    if (logErr) {
+      console.error('[Email] Batch email logs error:', logErr.message)
+    }
+
+    const alreadySentSet = new Set((sentLogs || []).map(l => l.user_id))
+
+    // Filter profiles to those who haven't received it yet
+    const profilesToSend = activeProfiles.filter(p => !alreadySentSet.has(p.id))
+    if (profilesToSend.length === 0) {
+      return NextResponse.json({ sent: 0, reason: 'all_already_sent' })
+    }
+
+    // Concurrency control: batch calls in chunks of 10 users to be polite to the APIs
+    const CHUNK_SIZE = 10
     let sent = 0
 
-    for (const abone of aboneler) {
-      if (abone.user_id === user.id) continue
+    for (let i = 0; i < profilesToSend.length; i += CHUNK_SIZE) {
+      const chunk = profilesToSend.slice(i, i + CHUNK_SIZE)
 
-      const { count } = await supabase
-        .from('email_logs')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', abone.user_id)
-        .eq('type', 'new_chapter')
-        .eq('ref_id', bolumId)
-      if ((count || 0) > 0) continue
+      await Promise.all(
+        chunk.map(async (profile) => {
+          try {
+            // Get user's email via Auth Admin
+            const { data: authData, error: authErr } = await admin.auth.admin.getUserById(profile.id)
+            if (authErr || !authData?.user?.email) {
+              console.error(`[Email] Failed to fetch email for user ${profile.id}:`, authErr?.message)
+              return
+            }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name, username, email_new_chapter')
-        .eq('id', abone.user_id).single()
+            const email = authData.user.email
 
-      if (profile?.email_new_chapter === false) continue
+            // Send email
+            const result = await sendNewChapterEmail({
+              toEmail:      email,
+              toName:       profile.display_name || profile.username || 'Okuyucu',
+              authorName,
+              storyTitle:   hikaye.baslik,
+              storySlug:    hikaye.slug,
+              chapterTitle: bolumBaslik,
+              chapterNo:    bolumNo,
+            })
 
-      const { data: authData } = await admin.auth.admin.getUserById(abone.user_id)
-      const email = authData?.user?.email
-      if (!email) continue
+            if (result.error) {
+              console.error(`[Email] Chapter resend error for user ${profile.id}:`, result.error)
+              return
+            }
 
-      const result = await sendNewChapterEmail({
-        toEmail:      email,
-        toName:       profile?.display_name || profile?.username || 'Okuyucu',
-        authorName,
-        storyTitle:   hikaye.baslik,
-        storySlug:    hikaye.slug,
-        chapterTitle: bolumBaslik,
-        chapterNo:    bolumNo,
-      })
+            // Save to email logs
+            await supabase.from('email_logs').insert({
+              user_id: profile.id,
+              type:    'new_chapter',
+              ref_id:  bolumId,
+            })
 
-      if (result.error) {
-        console.error('[Email] Chapter resend error:', result.error)
-        continue
-      }
-
-      await supabase.from('email_logs').insert({
-        user_id: abone.user_id, type: 'new_chapter', ref_id: bolumId,
-      })
-      console.log(`[Email] Chapter notification sent to ${email}`)
-      sent++
+            console.log(`[Email] Chapter notification sent to ${email}`)
+            sent++
+          } catch (innerErr: any) {
+            console.error(`[Email] Error sending to user ${profile.id}:`, innerErr?.message)
+          }
+        })
+      )
     }
 
     return NextResponse.json({ sent })

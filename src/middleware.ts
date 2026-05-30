@@ -4,13 +4,7 @@ import { checkRateLimit, authLimiter, apiLimiter } from '@/lib/ratelimit'
 import { applySecurityHeaders } from '@/lib/security-headers'
 
 export async function middleware(request: NextRequest) {
-  const { pathname, hash } = request.nextUrl
-
-  // ── 1. Recovery Link Redirection ──────────────────────
-  // Eğer ana sayfaya #access_token ile gelindiyse reset-password'e yönlendir
-  if (pathname === '/' && hash.includes('access_token')) {
-    return NextResponse.redirect(new URL(`/reset-password${hash}`, request.url))
-  }
+  const { pathname } = request.nextUrl
 
   // ── 2. Rate limiting ──────────────────────────────────
   const isRSCPrefetch = request.nextUrl.searchParams.has('_rsc') ||
@@ -18,7 +12,7 @@ export async function middleware(request: NextRequest) {
 
   if (!isRSCPrefetch) {
     if (request.method === 'POST' &&
-      (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname === '/auth/callback')) {
+      (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname === '/auth/callback' || pathname === '/api/password-reset')) {
       const limited = await checkRateLimit(request, authLimiter)
       if (limited) return limited
     }

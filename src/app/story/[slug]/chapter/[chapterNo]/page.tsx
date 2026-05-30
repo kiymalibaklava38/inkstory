@@ -49,6 +49,8 @@ export default async function ReadChapter({ params }: Props) {
         totalChapters={totalChapters || 1}
       />
       <PageTurnReader
+        storyId={story.id}
+        chapterId={chapter.id}
         storySlug={story.slug}
         chapterNo={chapterNo}
         chapterTitle={chapter.baslik}

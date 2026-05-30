@@ -102,8 +102,8 @@ export default function PremiumPage() {
       setUserId(user.id)
       const { data } = await supabase.from('profiles')
         .select('is_premium, premium_expires_at').eq('id', user.id).single()
-      const isPremium = data?.is_premium && data?.premium_expires_at &&
-        new Date(data.premium_expires_at) > new Date()
+      const isPremium = !!data?.is_premium &&
+        (!data?.premium_expires_at || new Date(data.premium_expires_at) > new Date())
       setUserPlan(isPremium ? 'premium' : 'free')
     })
   }, [])

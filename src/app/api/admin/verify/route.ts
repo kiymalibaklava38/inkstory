@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
     .from('verification_applications')
     .select('user_id')
     .eq('id', applicationId)
-    .single()
+    .maybeSingle()
 
   if (!app) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
 

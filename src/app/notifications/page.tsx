@@ -78,10 +78,13 @@ export default function NotificationsPage() {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'begeniler' }, async (payload) => {
           const { data: l } = await supabase
             .from('begeniler')
-            .select('profiles(username,display_name,avatar_url), hikayeler(baslik,slug)')
+            .select('profiles(username,display_name,avatar_url), hikayeler(baslik,slug,yazar_id)')
             .eq('id', payload.new.id).single()
           if (l && (l as any).hikayeler) {
             const d = l as any
+            // Sadece kendi hikayemizin beğenilerini göster
+            if (d.hikayeler?.yazar_id !== user.id) return
+
             const name = d.profiles?.display_name || d.profiles?.username
             setNotifs(prev => [{
               id: payload.new.id, type: 'like',
@@ -93,6 +96,9 @@ export default function NotificationsPage() {
           }
         })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'takip' }, async (payload) => {
+          // Sadece bize gelen takipleri göster
+          if (payload.new.takip_edilen_id !== user.id) return
+
           const { data: f } = await supabase
             .from('takip')
             .select('profiles:takipci_id(username,display_name,avatar_url)')
@@ -124,7 +130,8 @@ export default function NotificationsPage() {
 
     const [{ data: likes }, { data: comments }, { data: follows }] = await Promise.all([
       supabase.from('begeniler')
-        .select('id,created_at,profiles(username,display_name,avatar_url),hikayeler(baslik,slug,yazar_id)')
+        .select('id,created_at,profiles(username,display_name,avatar_url),hikayeler!inner(baslik,slug,yazar_id)')
+        .eq('hikayeler.yazar_id', userId)
         .order('created_at', { ascending: false }).limit(20),
       supabase.from('yorumlar')
         .select('id,icerik,created_at,profiles(username,display_name,avatar_url),hikayeler!inner(baslik,slug,yazar_id)')
